@@ -62,7 +62,7 @@ Experienced makers can also go by the information listed in this short readme.
 ## 📦 3D Printed Case
 
 The custom 3D printed case files are available on
-**[MakerWorld](https://makerworld.com/en/models/1514181-tiny-retro-arcade-8-games)**.
+**[MakerWorld](https://makerworld.com/en/models/1526306-tiny-retro-arcade-8-games)**.
 
 The case features:
 - Precise cutouts for display and buttons
