@@ -21,6 +21,7 @@
 #include "config.h"
 #include "display.h"
 #include "input.h"
+#include "frame.h"
 #include "gamemanager.h"
 #include "savesync.h"
 #include "gamelink.h"
@@ -87,7 +88,8 @@ static unsigned g_replayMask = 0;
 static const unsigned long KEY_HOLD_MS = 180;
 
 static int pinIndex(int pin) {
-  return pin == PIN_BUTTON_UP ? 0 : pin == PIN_BUTTON_DOWN ? 1 : pin == PIN_BUTTON_LEFT ? 2 : pin == PIN_BUTTON_RIGHT ? 3 : -1;
+  for (int i = 0; i < 4; i++) if (pin == buttonPin(i)) return i;   // keys are logical buttons, whatever the layout
+  return -1;
 }
 static unsigned currentMask() {
   unsigned long now = millis();
@@ -691,7 +693,7 @@ int main(int argc, char** argv) {
     airPump();
     updateInput();
     updateGameManager();
-    delay(16);
+    frameWait();
   }
 
   if (g_gif.active) toggleGif();

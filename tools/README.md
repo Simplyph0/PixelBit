@@ -31,7 +31,9 @@ A replay file is plain text, times in milliseconds since the emulator started (t
 
 `make update_test` followed by `python3 update_check.py` in `tools/tests` runs two simulated consoles through the firmware update (newer, same, older, denied, bad hash, no space, sender vanishing, lossy radio) and checks what gets installed.
 
-Run `make test` in `tools/tests` to check the game rules, the AIs, the two-console games and that scores, settings and the first-boot flag are really saved and survive a restart.
+Run `make test` in `tools/tests` to check the game rules, the AIs, the two-console games and that scores, settings, the button layout and the first-boot flag are really saved and survive a restart. GitHub Actions runs the same tests before every release build (`.github/workflows/build.yml`).
+
+The emulator's keys are always the logical buttons: the arrow you press is the button the game sees, whichever button layout the emulated console has saved.
 
 `R` writes a file in this format, so a recording can be replayed with `./emulator --replay recordings/input-....txt --seed N` (start recording right after launching the emulator). With `--headless --fast --speed 8` this makes automatic screenshot tours and tests.
 

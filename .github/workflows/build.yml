@@ -1,20 +1,54 @@
 name: Build firmware
 
+# Every push to main that changes the firmware is tested, built and published as
+# a release (vX.Y-build.N) whose notes list the commits since the last release.
+# Pushing a tag like v4.2 publishes that version instead, with the tag's own
+# message as the notes; a main push whose commit carries such a tag leaves the
+# release to the tag.
 on:
   push:
     branches: [main]
     tags: ["v*"]
+    paths:
+      - "GameSystem/**"
+      - "tools/**"
+      - ".github/workflows/**"
   pull_request:
+    paths:
+      - "GameSystem/**"
+      - "tools/**"
+      - ".github/workflows/**"
   workflow_dispatch:
 
 permissions:
   contents: write
 
 jobs:
-  build:
+  test:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
+
+      - uses: arduino/setup-arduino-cli@v2
+
+      - name: Install the libraries the tests compile against
+        run: |
+          arduino-cli lib update-index
+          arduino-cli lib install "Adafruit GFX Library"
+
+      - name: Run the tests
+        run: make -C tools/tests test GFX="$HOME/Arduino/libraries/Adafruit_GFX_Library"
+
+  build:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0          # the whole history, for the changelog
+
+      - name: Fetch the tags with their messages
+        run: git fetch --tags --force
 
       - uses: arduino/setup-arduino-cli@v2
 
@@ -23,44 +57,73 @@ jobs:
           arduino-cli config init
           arduino-cli config add board_manager.additional_urls https://arduino.esp8266.com/stable/package_esp8266com_index.json
           arduino-cli core update-index
+          arduino-cli lib update-index
           arduino-cli core install esp8266:esp8266@3.1.2
           arduino-cli lib install "Adafruit GFX Library" "Adafruit SSD1306" "Adafruit BusIO"
 
       - name: Compile
-        run: arduino-cli compile --fqbn esp8266:esp8266:nodemcuv2 --output-dir build GameSystem
+        run: arduino-cli compile --fqbn esp8266:esp8266:d1_mini --output-dir build GameSystem
+
+      - name: Work out the release
+        id: rel
+        run: |
+          ver=$(grep -oP '#define OS_VERSION "\K[^"]+' GameSystem/config.h | head -1)
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            tag="$GITHUB_REF_NAME"
+            publish=true
+          elif [[ "$GITHUB_EVENT_NAME" == push ]]; then
+            tag="${ver}-build.${GITHUB_RUN_NUMBER}"
+            # a version tag on this very commit publishes it instead
+            if git tag --points-at HEAD | grep -q '^v'; then publish=false; else publish=true; fi
+          else
+            tag="${ver}-test"
+            publish=false
+          fi
+          echo "tag=$tag" >> "$GITHUB_OUTPUT"
+          echo "publish=$publish" >> "$GITHUB_OUTPUT"
 
       - name: Name the file and make a checksum
         run: |
           cd build
-          mv GameSystem.ino.bin PixelBit-${GITHUB_REF_NAME//\//-}.bin
+          mv GameSystem.ino.bin "PixelBit-${{ steps.rel.outputs.tag }}.bin"
           sha256sum PixelBit-*.bin | tee SHA256SUMS.txt
 
       - uses: actions/upload-artifact@v4
         with:
-          name: PixelBit-firmware
+          name: PixelBit-${{ steps.rel.outputs.tag }}
           path: |
             build/PixelBit-*.bin
             build/SHA256SUMS.txt
 
-      - name: Work out the release tag
-        if: github.event_name == 'push'
-        id: rel
+      - name: Write the release notes
+        if: steps.rel.outputs.publish == 'true'
         run: |
-          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
-            echo "tag=$GITHUB_REF_NAME" >> "$GITHUB_OUTPUT"
+          tag="${{ steps.rel.outputs.tag }}"
+          if [[ "$GITHUB_REF" == refs/tags/* ]] && [ "$(git cat-file -t "$tag")" = tag ]; then
+            git tag -l --format='%(contents)' "$tag" > notes.md     # an annotated tag: its message
           else
-            ver=$(grep -oP '#define OS_VERSION "\K[^"]+' GameSystem/config.h | head -1)
-            echo "tag=${ver}-build.${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
+            prev=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || true)
+            {
+              echo "Changes since ${prev:-the start}:"
+              echo
+              git log --no-merges --format='- %s (%h)' ${prev:+$prev..}HEAD
+            } > notes.md
           fi
+          {
+            echo
+            echo "SHA-256: \`$(cut -d' ' -f1 build/SHA256SUMS.txt)\`"
+          } >> notes.md
+          cat notes.md
 
-      - name: Publish release with changelog
-        if: github.event_name == 'push'
-        uses: softprops/action-gh-release@v2
-        with:
-          tag_name: ${{ steps.rel.outputs.tag }}
-          target_commitish: ${{ github.sha }}
-          name: PixelBit ${{ steps.rel.outputs.tag }}
-          generate_release_notes: true
-          files: |
-            build/PixelBit-*.bin
-            build/SHA256SUMS.txt
+      - name: Publish the release
+        if: steps.rel.outputs.publish == 'true'
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          tag="${{ steps.rel.outputs.tag }}"
+          if gh release view "$tag" > /dev/null 2>&1; then
+            gh release upload "$tag" build/PixelBit-*.bin build/SHA256SUMS.txt --clobber
+          else
+            gh release create "$tag" --target "$GITHUB_SHA" --title "PixelBit $tag" \
+              --notes-file notes.md build/PixelBit-*.bin build/SHA256SUMS.txt
+          fi

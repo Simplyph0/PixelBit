@@ -4,24 +4,27 @@
 #include "gamelink.h"
 #include "highscore.h"
 #include "fwupdate.h"
+#include "gamemanager.h"
 #include <EEPROM.h>
 #include <ESP8266WiFi.h>
 
 TestMode testMode;
 
+struct TestItem { const char* name; uint8_t page; };   // page 0 = EXIT
+static const TestItem ITEM_LIST[] = {
+  {"DISPLAY", 1}, {"BUTTONS", 2}, {"STORAGE", 3}, {"RADIO", 4}, {"SYSTEM", 5},
 #if ENABLE_P2P_UPDATE
-static const uint8_t ITEMS = 7;
-static const char* const NAMES[7] = {"DISPLAY", "BUTTONS", "STORAGE", "RADIO", "SYSTEM", "UPDATE", "EXIT"};
-#else
-static const uint8_t ITEMS = 6;
-static const char* const NAMES[6] = {"DISPLAY", "BUTTONS", "STORAGE", "RADIO", "SYSTEM", "EXIT"};
+  {"UPDATE", 6},
 #endif
+  {"LAYOUT", 7}, {"EXIT", 0}
+};
+static const uint8_t ITEMS = sizeof(ITEM_LIST) / sizeof(ITEM_LIST[0]);
 static const uint8_t VISIBLE_ROWS = 6;
 static const uint8_t PATTERNS = 8;
 
-// Scratch area for the storage test, well away from the scores (0..) and the settings (128..)
-static const int TEST_ADDR = 400;
-static const int TEST_LEN = 64;
+// Scratch area for the storage test, after the scores and the settings (see highscore.h)
+static const int TEST_ADDR = TEST_SCRATCH_ADDR;
+static const int TEST_LEN = TEST_SCRATCH_LEN;
 
 void TestMode::begin() {
   page = P_LIST;
@@ -58,6 +61,11 @@ void TestMode::open(Page p) {
 #if ENABLE_P2P_UPDATE
       fwUpdate.begin();
 #endif
+      break;
+    case P_LAYOUT:
+      layoutArmed = false;   // the press that opened this page has to be let go first
+      layoutPicked = 0;
+      layoutHint = false;
       break;
     case P_RADIO:
       radioStarted = true;
@@ -165,9 +173,10 @@ bool TestMode::update() {
       if (buttons.rightPressed || buttons.downPressed) sel = (sel + 1) % ITEMS;
       else if (buttons.leftPressed) sel = (sel + ITEMS - 1) % ITEMS;
       else if (buttons.upPressed) {
-        if (sel == ITEMS - 1) return true;   // EXIT is always last
-        open((Page)(sel + 1));
-        if (sel == 4) result[4] = 1;
+        uint8_t p = ITEM_LIST[sel].page;
+        if (p == 0) return true;   // EXIT
+        open((Page)p);
+        if (p == P_SYSTEM) result[sel] = 1;
       }
       break;
 
@@ -213,10 +222,26 @@ bool TestMode::update() {
       if (buttons.downPressed || buttons.upPressed) leavePage();
       break;
 
+    case P_LAYOUT: {
+      // Which GPIO is the button the tester calls UP? UP and DOWN swap pins
+      // when the board is upside down; LEFT and RIGHT do not tell us anything new.
+      int pin = rawPressedPin();
+      if (!layoutArmed) { if (pin < 0) layoutArmed = true; break; }   // wait until every button is let go
+      if (pin < 0) break;
+      layoutArmed = false;                       // one decision per press
+      if (layoutPicked) { leavePage(); break; }  // any press after the result: back
+      int flipped = layoutFromUpPin(pin);
+      if (flipped < 0) { layoutHint = true; break; }
+      gameManager.setButtonLayout(flipped == 1);
+      layoutPicked = flipped ? 2 : 1;
+      result[sel] = 1;
+      break;
+    }
+
     case P_UPDATE:
 #if ENABLE_P2P_UPDATE
       if (fwUpdate.update()) {
-        result[5] = 1;
+        result[sel] = 1;
         page = P_LIST;    // fwUpdate.stop() has already run
       }
 #else
@@ -279,8 +304,8 @@ bool TestMode::draw() {
         if (on) display.fillRect(0, y - 1, SCREEN_WIDTH, 9, SSD1306_WHITE);
         display.setTextColor(on ? SSD1306_BLACK : SSD1306_WHITE);
         display.setCursor(4, y);
-        display.print(NAMES[i]);
-        if (i < ITEMS - 1) {
+        display.print(ITEM_LIST[i].name);
+        if (ITEM_LIST[i].page != 0) {
           const char* r = result[i] == 1 ? "OK" : (result[i] == 2 ? "FAIL" : "--");
           display.setCursor(SCREEN_WIDTH - 6 * strlen(r) - 4, y);
           display.print(r);
@@ -373,6 +398,21 @@ bool TestMode::draw() {
     }
 
     case P_UPDATE:
+      break;
+
+    case P_LAYOUT:
+      line(0, "BUTTON LAYOUT");
+      if (!layoutPicked) {
+        line(14, "Press the button");
+        line(23, "that is UP on this");
+        line(32, "console.");
+        if (layoutHint) line(44, "(that was LEFT/RIGHT)");
+      } else {
+        line(14, layoutPicked == 2 ? "UPSIDE DOWN board" : "NORMAL board");
+        line(23, "Saved. Games and");
+        line(32, "menus now use it.");
+        line(54, "Any button: back");
+      }
       break;
 
     case P_SYSTEM: {

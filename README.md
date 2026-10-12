@@ -1,6 +1,6 @@
 # PixelBit
 
-PixelBit is a handheld arcade you can fit in your pocket. It's an ESP8266, a tiny OLED screen, and four buttons. It has 14 games, and you can link two of them together and play each other. No wifi or router needed. It runs PixelOS v4.1.
+PixelBit is a handheld arcade you can fit in your pocket. It's an ESP8266, a tiny OLED screen, and four buttons. It has 14 games, and you can link two of them together and play each other. No wifi or router needed. It runs PixelOS v4.2.
 
 ![PixelBit](images/finished_console.jpg)
 
@@ -80,13 +80,15 @@ PixelBit is a handheld arcade you can fit in your pocket. It's an ESP8266, a tin
 
 - Settings for each game (difficulty, mode, board size, etc) that get remembered between power-ups
 - Two-console play with host and join, short unit IDs, the host can accept or deny, and encrypted packets
-- High scores that actually save
+- High scores that actually save, with a Wi-Fi backup page to download and restore them
 - An animated menu with an icon and best score for every game
-- A welcome animation and a short tour on the first boot
+- A welcome animation and a short tour on the first boot, which also learns which way round your buttons are
 - Little screen effects like score pops and shutter wipes
 - A manufacturing test mode for checking new units, see [Manufacturing test mode](#manufacturing-test-mode)
 - Console-to-console firmware updates over ESP-NOW, no cable or PC needed, see [Console-to-console firmware update](#console-to-console-firmware-update)
+- One firmware for every console: the button layout and the display pins are worked out on the console, not baked in
 - A PC emulator and automated tests, see [tools/](tools/README.md)
+- Ready-made `.bin` files on the [Releases](https://github.com/Simplyph0/PixelBit/releases) page, built and tested automatically
 
 <table>
 <tr>
@@ -98,7 +100,7 @@ PixelBit is a handheld arcade you can fit in your pocket. It's an ESP8266, a tin
 
 ## Build it
 
-The full step by step build guide with photos is in **[Instructions.md](Instructions.md)**. If you already know your way around a soldering iron, this is the short version.
+The full step by step build guide with photos is in **[Instructions.md](Instructions.md)** (also as a [PDF](Instructions.pdf)). If you already know your way around a soldering iron, this is the short version.
 
 ### Parts
 - ESP8266 D1 Mini
@@ -120,7 +122,7 @@ The full step by step build guide with photos is in **[Instructions.md](Instruct
 | Button Left | D4 (GPIO2) | Input, other side to ground |
 | Button Right | D5 (GPIO14) | Input, other side to ground |
 
-If your buttons or display wires are flipped, change `FLIPPED_BUTTONS` or `FLIPPED_I2C` at the top of `GameSystem/config.h` instead of rewiring.
+Built your board upside down, so every button is in the opposite spot? No need to rewire. The first-boot tour asks you to press Up and works out the layout from that, and you can change it any time in test mode > **LAYOUT**. If SDA and SCL are swapped, the firmware notices and uses them the other way round.
 
 ### Case
 The 3D printed case is the original author's design: [Tiny Retro Arcade on MakerWorld](https://makerworld.com/en/models/1526306-tiny-retro-arcade-8-games). It has cutouts for the display and buttons, a USB port, and a snap-fit lid with screws.
@@ -133,6 +135,14 @@ The 3D printed case is the original author's design: [Tiny Retro Arcade on Maker
 4. Open `GameSystem/GameSystem.ino`.
 5. **Change `LINK_SECRET` in `GameSystem/config.h` to your own random text.** Two consoles can only play each other if they have the same secret, and it keys the encryption.
 6. Pick the board **LOLIN(WEMOS) D1 R2 & mini**, pick your port, and hit Upload.
+
+No IDE? Every release on the [Releases](https://github.com/Simplyph0/PixelBit/releases) page has a ready `.bin`. Flash it with [esptool](https://github.com/espressif/esptool):
+
+```bash
+esptool.py --port /dev/ttyUSB0 write_flash 0x0 PixelBit-v4.2.bin
+```
+
+The release builds use the `LINK_SECRET` that is in this repo, so they can play and update each other but anyone else's release build can join them too.
 
 Heads up: `LINK_SECRET` is sitting in the source, so anyone with your firmware can read it. It keeps other people and other builds out of your games, but it won't stop someone who has your firmware.
 
@@ -152,6 +162,8 @@ A new console plays a welcome animation ("Welcome to your new PixelBit!") and th
 </table>
 
 It only counts as done when you acknowledge it. That means you either finish the tour, or skip it (hold any button for 1.5 seconds) and close the "TOUR SKIPPED" message with **Up**. If the power gets cut before that, it plays again next boot. Want to see it again later? Hold **Down** on the menu for a second.
+
+The first page of the first tour also checks your button layout. It asks for **Up**: if that press arrives where Down would be on a normal board, the console knows it is built upside down, saves that, and every screen after it uses the right buttons.
 
 ### Menu
 
@@ -211,7 +223,16 @@ Both consoles need the same firmware version and the same `LINK_SECRET`. Each co
 
 ## Saved data
 
-High scores, each game's settings, and the "tour done" flag live in the ESP8266's emulated EEPROM. Everything has a checksum, so if a block gets damaged it just goes back to defaults. A normal firmware upload keeps your data. Picking "Erase Flash: All Flash Contents" in the Arduino IDE wipes it.
+High scores, each game's settings, the button layout, and the "tour done" flag live in the ESP8266's emulated EEPROM. Everything has a checksum, so if a block gets damaged it just goes back to defaults. A normal firmware upload (or a console-to-console update) keeps your data. Picking "Erase Flash: All Flash Contents" in the Arduino IDE wipes it.
+
+### Backing up your scores
+There's a hidden Wi-Fi page for this. On the menu press **Left, Left, Right, Right, Up, Up, Left, Right**, then hold **Up** for two seconds. The console starts its own little Wi-Fi network and shows the name and a random password on screen (both are new every time). Join it with your phone and open `http://192.168.4.1`. From there you can:
+
+- download your scores as a small text file,
+- paste or upload one to restore it (keep the best of both, or overwrite),
+- erase every score (you have to type RESET first).
+
+Double-tap **Up** to switch it off again. Only one device can join at a time, and the network is gone once it's off. The save file has a checksum, so a damaged or edited one gets refused.
 
 ## Manufacturing test mode
 
@@ -225,7 +246,9 @@ If the power gets cut during the animation, the tour, or the message, the unit g
 ### Getting in
 On the welcome animation or any page of the tour, press **Left three times** (each press within 3 seconds of the last), then **hold Up** for one second.
 
-Test mode never marks the tour as acknowledged, so a tested unit still greets its new owner. Picking **EXIT** restarts the console into a normal first boot.
+Test mode never marks the tour as acknowledged, so a tested unit still greets its new owner. The only thing it saves is the button layout, and only if you set it on the LAYOUT page. Picking **EXIT** restarts the console into a normal first boot.
+
+Buttons the wrong way round? Use the opposite buttons: on the menu hold **Up** to start the tour, press **Right three times**, then hold **Down**. Everything stays swapped until it's fixed, so step to LAYOUT and open it with **Down**. On that page, press the button that really is Up.
 
 ### The tests
 Move with **Left/Right** and run a test with **Up**. The list shows OK, FAIL, or -- for each one.
@@ -248,6 +271,7 @@ Move with **Left/Right** and run a test with **Up**. The list shows OK, FAIL, or
 | STORAGE | Writes four bit patterns to a scratch area and reads them back from the EEPROM buffer and from the flash chip itself. FAIL shows the first bad byte. It doesn't touch scores or settings |
 | RADIO | Starts the radio and scans for other consoles in test mode. **Up** switches between scanning and sending beacons, so two units can find each other (one scans, one beacons). OK once another unit has been seen. Shows the unit's MAC and short ID |
 | UPDATE | Send or receive firmware between two consoles, see [Console-to-console firmware update](#console-to-console-firmware-update) |
+| LAYOUT | Press the button that is Up on your console. It works out whether the board is built normally or upside down, saves that, and uses it straight away |
 | SYSTEM | Firmware version, ID, firmware fingerprint, chip ID, MAC, real and configured flash size, free memory, uptime, and the last reset reason. If the flash sizes don't match, you probably have the wrong board setting or a fake chip |
 
 The emulator has the same mode (run it without `--no-tutorial`). There the storage test only checks the memory buffer, and the radio test needs two emulators running with `--udp 0` and `--udp 1` to find anyone.
@@ -281,7 +305,7 @@ The screens show the first 8 characters as two groups, so that example is **9DEF
 Read this before you use it. This is a hobby feature, not secure updating.
 
 - The firmware is **not signed**. The hash only proves the file arrived in one piece. It does not prove who made it.
-- The pairing secret (`LINK_SECRET` in `config.h`) is in this public repo, so anyone running this code can pair with your console. Radio packets are authenticated per session, but that is not a defence against someone who knows the secret.
+- The pairing secret (`LINK_SECRET` in `config.h`) is in this public repo, so anyone running this code can pair with your console. Radio packets are authenticated per session and numbered so they can't be replayed, but that is not a defence against someone who knows the secret.
 - The only real gate is the consent screen. Someone nearby who also has test mode open and picks SEND could offer your console a malicious image, and if you press Up on it, you installed it. Only accept from a console you are looking at.
 - The 8 character fingerprint is 32 bits. It is fine for "are these the same build", not for telling a good image from a crafted one. Compare the full hash if you care.
 - A power cut in the middle of the final write can still brick a unit. If that happens, reflash over USB.
@@ -301,13 +325,15 @@ In the emulator, add `--firmware file.bin` to load a real image to send, `--upda
 | `tools/emulator/` | A PC emulator that runs the real firmware in a window. Screenshots, GIFs, input recording and replay |
 | `tools/tests/` | Automated checks for the game rules, the AIs, two-console play and saved data. Run `make test` in there |
 | `tools/bridge/` | Firmware for an ESP32 board so the emulator can play a real console |
-| `Instructions.md`, `images/` | The original build guide and photos |
+| `Instructions.md`, `Instructions.pdf`, `images/` | The original build guide and photos |
+| `.github/workflows/` | Builds, tests and publishes a release for every firmware change |
 
 ### How the firmware is laid out
 - `gamemanager` runs the menu, the settings screens, the result screens, the tour and the games. Every game is a class that implements the `Game` interface in `game.h`.
-- `display`, `input`, `ui` and `fx` are the shared screen, button and effect helpers.
+- `display`, `input`, `ui`, `fx` and `frame` are the shared screen, button (layout and debouncing), effect and frame timing helpers.
 - `gamelink`, `lobby` and `crypto` are the two-console link (ESP-NOW with SHA-256 based pairing and encryption) and the shared host and join screens.
-- `highscore` and `settings` handle the saved data.
+- `highscore` and `settings` handle the saved data, and `savesync` is the Wi-Fi backup page.
+- `fwupdate` is the console-to-console firmware update.
 - `tutorial`, `welcome` and `testmode` are the first boot stuff and the manufacturing test.
 
 ### Adding a game
@@ -325,12 +351,13 @@ Check [tools/README.md](tools/README.md) for the keys, replay files, and how to 
 
 ## Troubleshooting
 
-- **Blank display:** check the SDA and SCL wires and the display address (0x3C).
-- **A button does nothing or does the wrong thing:** check its wire against the pin table, or try `FLIPPED_BUTTONS` in `config.h`.
+- **Blank display:** check the SDA and SCL wires and the display address (0x3C). Swapped SDA and SCL are found on their own. With `DEBUG_SERIAL` on, the serial monitor says what it found.
+- **The buttons are mirrored (Left does Right, Up does Down):** set the layout in test mode > LAYOUT (see [Getting in](#getting-in) for how to get there with mirrored buttons).
+- **A button does nothing:** check its wire against the pin table.
 - **Upload fails:** check the board and port, and make sure the USB cable can carry data and not just power.
 - **Two consoles can't find each other:** both need the new firmware and the same `LINK_SECRET`. Keep them within a few meters, and have the host pick **HOST GAME** first.
 - **The tour shows up every time:** it only stops once you acknowledge it (see First boot). If your scores and settings also don't survive a restart, reflash and open an issue.
-- **Serial output:** 115200 baud. Set `DEBUG_SERIAL` to 1 in `config.h` for detailed logs.
+- **Serial output:** 115200 baud. Set `DEBUG_SERIAL` to 1 in `config.h` for detailed logs. It's off in normal builds because it slows things down and prints the backup page's Wi-Fi password.
 
 ## License
 

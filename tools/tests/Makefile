@@ -37,7 +37,7 @@ settings_test: settings_test.cpp $(CORE) $(FW)/settings.cpp
 # firmware update test: three builds with different version numbers talk to each other
 update_test: update_test.cpp air.cpp $(CORE) $(LINK) $(FW)/fwupdate.cpp
 	g++ $(CXX_FLAGS) -DUSE_AIR -o update_test update_test.cpp air.cpp $(CORE) $(LINK) $(FW)/fwupdate.cpp
-	g++ $(CXX_FLAGS) -DUSE_AIR '-DOS_VERSION="v4.2"' -DOS_VERSION_NUM=402 -o update_test_new update_test.cpp air.cpp $(CORE) $(LINK) $(FW)/fwupdate.cpp
+	g++ $(CXX_FLAGS) -DUSE_AIR '-DOS_VERSION="v4.3"' -DOS_VERSION_NUM=403 -o update_test_new update_test.cpp air.cpp $(CORE) $(LINK) $(FW)/fwupdate.cpp
 	g++ $(CXX_FLAGS) -DUSE_AIR '-DOS_VERSION="v4.0"' -DOS_VERSION_NUM=400 -o update_test_old update_test.cpp air.cpp $(CORE) $(LINK) $(FW)/fwupdate.cpp
 
 clean:

@@ -7,35 +7,18 @@
 #include <Adafruit_SSD1306.h>
 #include <EEPROM.h>
 
-// Button Pins
-// Set FLIPPED_BUTTONS to 1 when the perfboard is turned over (rotated 180
-// degrees): every button is then in the opposite position, so UP and DOWN swap
-// pins and LEFT and RIGHT swap pins.
+// Button layout for a console that has never been set up. A perfboard turned
+// over (rotated 180 degrees) has every button in the opposite place: UP and DOWN
+// swap, and so do LEFT and RIGHT. The layout is saved on the first boot and can
+// be changed at any time in test mode > LAYOUT, so a firmware update from a
+// console with the other layout keeps this console's buttons right.
+// Pins (normal layout): UP 12, DOWN 13, LEFT 2, RIGHT 14 (see input.cpp).
 #define FLIPPED_BUTTONS 1
 
-#if FLIPPED_BUTTONS
-  #define PIN_BUTTON_UP 13
-  #define PIN_BUTTON_DOWN 12
-  #define PIN_BUTTON_LEFT 14
-  #define PIN_BUTTON_RIGHT 2
-#else
-  #define PIN_BUTTON_UP 12
-  #define PIN_BUTTON_DOWN 13
-  #define PIN_BUTTON_LEFT 2
-  #define PIN_BUTTON_RIGHT 14
-#endif
-
-#define FLIPPED_I2C_PINS 0
-
-#if FLIPPED_I2C_PINS
-  // Display Pins
-  #define PIN_SCL 4
-  #define PIN_SDA 5
-#else
-  // Display Pins
-  #define PIN_SCL 5
-  #define PIN_SDA 4
-#endif
+// Display pins. These are tried first; if no display answers there, the two are
+// swapped, so a display wired the other way round still works.
+#define PIN_SDA 4
+#define PIN_SCL 5
 
 // Display Setup
 #define SCREEN_WIDTH 128
@@ -46,8 +29,8 @@
 // System identity
 #define OS_NAME "PixelOS"
 #ifndef OS_VERSION
-  #define OS_VERSION "v4.1"
-  #define OS_VERSION_NUM 401       // the same version as a number (major * 100 + minor); firmware updates compare this
+  #define OS_VERSION "v4.2"
+  #define OS_VERSION_NUM 402       // the same version as a number (major * 100 + minor); firmware updates compare this
 #endif
 #define SPLASH_MS 2000
 
@@ -56,12 +39,17 @@
 // the security notes in the README first.
 #define ENABLE_P2P_UPDATE 1
 
+// Frame timing (see frame.h): a frame that redraws the screen lasts FRAME_MS,
+// any other frame waits at most FRAME_IDLE_MS before the next one.
+#define FRAME_MS 45
+#define FRAME_IDLE_MS 16
+
 // Game Constants
 #define MAX_GAMES 14
 #define BUTTON_DELAY 150
 #define MENU_REPEAT_DELAY_MS 350   // hold LEFT/RIGHT this long before the menu starts scrolling
 #define MENU_REPEAT_MS 110         // then it steps this often
-#define TOUR_HOLD_MS 700           // hold DOWN on the menu this long to replay the tour
+#define TOUR_HOLD_MS 1000          // hold DOWN on the menu this long to replay the tour
 #define TEST_HOLD_MS 1000          // hold UP this long (after LEFT three times) for manufacturing test mode
 #define TOUR_SKIP_MS 1500          // hold any button this long to skip the tour
 #define EXIT_HOLD_MS 1000   // hold UP + DOWN together this long to leave a game
@@ -132,7 +120,7 @@ enum GameState {
 // Serial debug logging; set to 1 while developing. Off by default: button and
 // menu logging costs time every frame, and the sync log would print the
 // Wi-Fi password.
-#define DEBUG_SERIAL 1
+#define DEBUG_SERIAL 0
 #if DEBUG_SERIAL
   #define LOG(...) Serial.printf(__VA_ARGS__)
 #else

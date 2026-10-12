@@ -9,6 +9,17 @@
 #define SAVE_SLOTS 32          // upper bound on games a save file can describe
 #define SAVE_MAX_SCORE 999999
 
+// EEPROM map: the scores at 0, the settings (settings.cpp) at SETTINGS_ADDR, and
+// the storage test's scratch bytes (test mode) at TEST_SCRATCH_ADDR. The checks
+// below stop a build where adding games would make one run into the next.
+#define SETTINGS_ADDR 128
+#define TEST_SCRATCH_ADDR 400
+#define TEST_SCRATCH_LEN 64
+static_assert(HIGHSCORE_BASE_ADDR + 8 + 4 * MAX_GAMES + 4 <= SETTINGS_ADDR, "the scores would run into the settings");
+static_assert(SETTINGS_ADDR + 10 + MAX_GAMES * MAX_GAME_OPTIONS + 2 <= TEST_SCRATCH_ADDR, "the settings would run into the test area");
+static_assert(TEST_SCRATCH_ADDR + TEST_SCRATCH_LEN <= EEPROM_SIZE, "the test area is past the end of the EEPROM");
+static_assert(MAX_GAMES <= 16, "the settings keep a 16-bit mask of games");
+
 // Save format (version 1), little endian, identical in EEPROM and in exported files:
 //   "GSAV" | version u8 | count u8 | reserved u16 | score i32 x count | crc32 u32
 // The CRC covers everything before it. Because the file states its own game

@@ -1,6 +1,7 @@
 #include "tutorial.h"
 #include "display.h"
 #include "input.h"
+#include "gamemanager.h"
 #include "ui.h"
 
 Tutorial tutorial;
@@ -33,7 +34,8 @@ static const Page PAGES[] = {
 };
 static const uint8_t PAGE_COUNT = sizeof(PAGES) / sizeof(PAGES[0]);
 
-void Tutorial::begin() {
+void Tutorial::begin(bool learn) {
+  learnLayout = learn;
   page = 0;
   anyHeldSince = 0;
   comboSince = 0;
@@ -82,6 +84,12 @@ TutorialResult Tutorial::update() {
         go(page + 1);
       } else if (buttons.downPressed && page > 0) {
         go(page - 1);
+      } else if (buttons.downPressed && learnLayout) {
+        // First boot, first page: the only thing to press is UP. A press that
+        // arrives as DOWN means the console is built the other way round, so
+        // take the other layout and carry on (it is saved; test mode can change it).
+        gameManager.setButtonLayout(!buttonsFlipped());
+        go(page + 1);
       }
       break;
   }

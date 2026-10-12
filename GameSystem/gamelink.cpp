@@ -31,7 +31,7 @@ static uint8_t BROADCAST[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 struct RxSlot {
   uint8_t mac[6];
   uint8_t len;
-  uint8_t data[216];   // big enough for a bulk packet (2 + 200 + 8 bytes)
+  uint8_t data[216];   // big enough for a bulk packet (6 + 200 + 8 bytes)
 };
 static const uint8_t RX_SLOTS = 12;   // a burst of bulk packets can arrive between two calls to poll()
 static RxSlot rxQueue[RX_SLOTS];
@@ -236,23 +236,36 @@ bool GameLink::receive(uint8_t* out, uint8_t& len) {
 unsigned long GameLink::msSinceReceive() const { return millis() - lastRx; }
 
 // ---------------------------------------------------------------------------
-// Bulk channel: [magic, T_BULK, payload..., tag]; the tag covers everything
-// before it and uses the session key, so only the paired console can make them
+// Bulk channel: [magic, T_BULK, seq (4), payload..., tag]. The tag uses the
+// session key and also covers the sender's direction, so only the paired console
+// can make them, and a packet cannot be replayed or bounced back to its sender.
 // ---------------------------------------------------------------------------
+static void bulkTag(const uint8_t* key, uint8_t dir, const uint8_t* pkt, uint8_t len, uint8_t out[32]) {
+  uint8_t msg[1 + 6 + LINK_BULK_MAX];
+  msg[0] = dir;
+  memcpy(msg + 1, pkt, len);
+  hmacSha256(key, 32, msg, 1 + len, out);
+}
+
 bool GameLink::sendBulk(const uint8_t* data, uint8_t len) {
   if (linkState != LINK_CONNECTED || len > LINK_BULK_MAX) return false;
-  uint8_t pkt[2 + LINK_BULK_MAX + TAG_LEN];
+  uint8_t pkt[6 + LINK_BULK_MAX + TAG_LEN];
   pkt[0] = MAGIC;
   pkt[1] = T_BULK;
-  memcpy(pkt + 2, data, len);
+  pkt[2] = txBulkSeq;
+  pkt[3] = txBulkSeq >> 8;
+  pkt[4] = txBulkSeq >> 16;
+  pkt[5] = txBulkSeq >> 24;
+  memcpy(pkt + 6, data, len);
   uint8_t mac32[32];
-  hmacSha256(sessionKey, 32, pkt, 2 + len, mac32);
-  memcpy(pkt + 2 + len, mac32, TAG_LEN);
+  bulkTag(sessionKey, amHost ? 0 : 1, pkt, 6 + len, mac32);
+  memcpy(pkt + 6 + len, mac32, TAG_LEN);
 
+  txBulkSeq++;
   bulkInFlight = true;
   bulkSentAt = millis();
   lastTx = bulkSentAt;
-  rawSend(peerMac, pkt, 2 + len + TAG_LEN);
+  rawSend(peerMac, pkt, 6 + len + TAG_LEN);
   return true;
 }
 
@@ -271,17 +284,22 @@ bool GameLink::bulkFailed() {
 void GameLink::handleBulk(const uint8_t* mac, const uint8_t* data, uint8_t len) {
   if (linkState != LINK_CONNECTED && linkState != LINK_ACCEPTING) return;
   if (!sameBytes(mac, peerMac, 6)) return;
-  if (len < 2 + 1 + TAG_LEN || len > 2 + LINK_BULK_MAX + TAG_LEN) return;
+  if (len < 6 + 1 + TAG_LEN || len > 6 + LINK_BULK_MAX + TAG_LEN) return;
 
-  uint8_t payload = len - 2 - TAG_LEN;
+  uint8_t payload = len - 6 - TAG_LEN;
   uint8_t mac32[32];
-  hmacSha256(sessionKey, 32, data, 2 + payload, mac32);
-  if (!sameBytes(mac32, data + 2 + payload, TAG_LEN)) return;
+  bulkTag(sessionKey, amHost ? 1 : 0, data, 6 + payload, mac32);   // the sender's direction
+  if (!sameBytes(mac32, data + 6 + payload, TAG_LEN)) return;
+
+  uint32_t seq = (uint32_t)data[2] | (uint32_t)data[3] << 8 | (uint32_t)data[4] << 16 | (uint32_t)data[5] << 24;
+  if (rxBulkSeqValid && (int32_t)(seq - rxBulkSeq) <= 0) return;   // replayed or reordered
+  rxBulkSeq = seq;
+  rxBulkSeqValid = true;
 
   lastRx = millis();
   if (linkState == LINK_ACCEPTING) setState(LINK_CONNECTED);
 
-  if (bulkHandler) bulkHandler(data + 2, payload);
+  if (bulkHandler) bulkHandler(data + 6, payload);
 }
 
 void GameLink::setBulkHandler(void (*handler)(const uint8_t*, uint8_t)) { bulkHandler = handler; }
@@ -322,6 +340,9 @@ void GameLink::deriveSessionKey(const uint8_t* hostMac, const uint8_t* joinerMac
   txSeq = 0;
   rxSeq = 0;
   rxSeqValid = false;
+  txBulkSeq = 0;
+  rxBulkSeq = 0;
+  rxBulkSeqValid = false;
   havePending = false;
 }
 

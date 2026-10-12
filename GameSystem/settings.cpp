@@ -1,12 +1,12 @@
 #include "settings.h"
 #include <EEPROM.h>
+#include "highscore.h"   // SETTINGS_ADDR: the EEPROM map
 
 // Layout at SETTINGS_ADDR: "GOPT", version, games, options per game, a flags
 // byte (version 2); version 2 then has the 16-bit "seen" mask (bit n = the settings screens
 // of game n have been shown once); then the values (row by row) and a 16-bit
 // Fletcher checksum of everything before it. The high scores live at address 0
 // and use less than 100 bytes. Version 1 (no mask) is still read.
-static const int SETTINGS_ADDR = 128;
 static const uint8_t SETTINGS_VERSION = 2;
 
 static uint16_t fletcher16(const uint8_t* data, size_t len) {

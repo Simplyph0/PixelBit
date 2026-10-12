@@ -46,7 +46,7 @@ print('newer version, 10% of packets lost')
 inst, lrx, ltx, secs = run('newer', 'update_test_new', 'update_test', loss=10)
 check(inst == expected(), f'the installed image is the sender\'s, with the receiver\'s own flash header bytes ({secs:.0f} s)')
 check('RESTART requested' in lrx, 'the receiver restarts after installing')
-check('newer' in lrx and 'v4.2' in lrx, 'the receiver was told it is a newer version')
+check('newer' in lrx and 'v4.3' in lrx, 'the receiver was told it is a newer version')
 check('phase TX_DONE' in ltx, 'the sender reports success')
 
 print('same version number')

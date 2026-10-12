@@ -1,4 +1,4 @@
-// GameSystem.ino - Hauptdatei
+// GameSystem.ino - the main sketch file
 #include "config.h"
 #include "display.h"
 #include "input.h"
@@ -6,6 +6,7 @@
 #include "savesync.h"
 #include "highscore.h"
 #include "settings.h"
+#include "frame.h"
 
 void setup() {
   Serial.begin(115200);
@@ -20,5 +21,5 @@ void setup() {
 void loop() {
   updateInput();
   updateGameManager();
-  delay(16); // ~60 FPS
+  frameWait();   // steady game speed (see frame.h)
 }

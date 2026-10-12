@@ -1,15 +1,34 @@
 #include "display.h"
+#include "input.h"
 
 Adafruit_SSD1306 display(SCREEN_WIDTH, SCREEN_HEIGHT, &Wire, OLED_RESET);
 
+static bool displayAnswers() {
+  Wire.beginTransmission(SCREEN_ADDRESS);
+  return Wire.endTransmission() == 0;
+}
+
 void initDisplay() {
-  // The library must not call Wire.begin() again: that would reset the bus to
-  // the default pins and ignore PIN_SDA / PIN_SCL (FLIPPED_I2C).
+  // Find the display: the configured pins first, then the same two swapped. The
+  // library must not call Wire.begin() again: that would reset the bus to the
+  // default pins.
   Wire.begin(PIN_SDA, PIN_SCL);
-  
-  if(!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS, true, false)) {
-    Serial.println(F("SSD1306 allocation failed"));
-    for(;;);
+  if (!displayAnswers()) {
+    Wire.begin(PIN_SCL, PIN_SDA);
+    if (displayAnswers()) {
+      Serial.println(F("Display found with SDA and SCL swapped"));
+    } else {
+      Wire.begin(PIN_SDA, PIN_SCL);
+      Serial.println(F("No display answered on either pin order"));
+    }
+  }
+
+  if (!display.begin(SSD1306_SWITCHCAPVCC, SCREEN_ADDRESS, true, false)) {
+    // Nothing to draw on: say why over USB now and then, without tripping the watchdog
+    for (;;) {
+      Serial.println(F("SSD1306 display could not be started (check its wiring)"));
+      delay(2000);
+    }
   }
   
   display.clearDisplay();
@@ -26,10 +45,7 @@ void showSplash() {
 
   unsigned long start = millis();
   while (millis() - start < SPLASH_MS) {
-    if (digitalRead(PIN_BUTTON_UP) == LOW || digitalRead(PIN_BUTTON_DOWN) == LOW ||
-        digitalRead(PIN_BUTTON_LEFT) == LOW || digitalRead(PIN_BUTTON_RIGHT) == LOW) {
-      break;
-    }
+    if (rawPressedPin() >= 0) break;
     delay(10);
   }
 }

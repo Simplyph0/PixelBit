@@ -108,6 +108,9 @@ private:
   uint32_t txSeq = 0;
   uint32_t rxSeq = 0;
   bool rxSeqValid = false;
+  uint32_t txBulkSeq = 0;         // the bulk channel counts on its own
+  uint32_t rxBulkSeq = 0;
+  bool rxBulkSeqValid = false;
   bool amHost = false;
 
   HostEntry hosts[LINK_MAX_HOSTS];
