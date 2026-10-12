@@ -1,7 +1,6 @@
 #!/bin/sh
 # Boots the emulator on a fresh saved-data file and checks the first-boot rules:
 #  - a unit that was only switched on (greeting) saves nothing about the tour,
-#    but does save its button layout,
 #  - test mode (LEFT x3, hold UP) never marks the tour as acknowledged,
 #  - finishing the tour, or skipping it and closing the message, saves the flag,
 #  - scores and settings are saved and survive a restart.
@@ -30,7 +29,6 @@ printf 'seed 1\n1500 quit\n' > "$DIR/replay"; run
 [ -s "$FILE" ] || fail "nothing at all was saved on the first boot"
 [ "$(dd if="$FILE" bs=1 count=4 2>/dev/null | tr -d '\000')" = "GSAV" ] || fail "no high-score block saved"
 [ "$(flag)" = "0" ] || fail "the tour flag was saved before the tour was acknowledged"
-f=$(flags); [ "$f" != "none" ] && [ $((f & 2)) -ne 0 ] || fail "the button layout was not saved on the first boot"
 
 # 2. test mode: LEFT three times, hold UP, run the storage test, leave
 printf 'seed 1\n700 4\n830 0\n1000 4\n1130 0\n1300 4\n1430 0\n1600 1\n3000 0\n3300 8\n3430 0\n3700 1\n3830 0\n4300 quit\n' > "$DIR/replay"; run
@@ -49,14 +47,5 @@ cp "$FILE" "$DIR/before"
 printf 'seed 1\n3500 quit\n' > "$DIR/replay"; run
 cmp -s "$FILE" "$DIR/before" || fail "the saved data changed on a normal boot"
 
-# 6. a fresh console whose first UP on the tour arrives as DOWN is built the other
-#    way round: the layout flips and is saved
-rm -f "$FILE"
-printf 'seed 1\n700 1\n830 0\n1200 2\n1330 0\n1800 quit\n' > "$DIR/replay"; run
-before=$(grep -o 'FLIPPED_BUTTONS [01]' ../../GameSystem/config.h | cut -d' ' -f2)
-f=$(flags); [ "$f" != "none" ] || fail "nothing saved after the layout was learned"
-[ $(( (f >> 2) & 1 )) -ne "$before" ] || fail "DOWN on the first tour page did not switch the button layout"
-[ $((f & 1)) -eq 0 ] || fail "learning the layout acknowledged the tour"
-
-echo "persistence: the button layout is saved on the first boot and learned from the first tour page; the tour is acknowledged only by finishing it or closing the skip message; test mode and power cuts leave it unacknowledged; saved data survives a restart"
+echo "persistence: the tour is acknowledged only by finishing it or closing the skip message; test mode and power cuts leave it unacknowledged; saved data survives a restart"
 rm -rf "$DIR"

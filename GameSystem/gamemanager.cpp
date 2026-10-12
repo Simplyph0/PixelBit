@@ -42,14 +42,6 @@ void GameManager::init() {
   optionsSeen = 0;
   settingFlags = 0;
   loadGameOptions(optionValue, &optionsSeen, &settingFlags);
-  // The button layout belongs to the console, not to the firmware: store the
-  // built-in default the first time, so a later firmware (even one from a
-  // console with the other layout) keeps using this console's own.
-  if (!(settingFlags & SETTING_LAYOUT_SAVED)) {
-    settingFlags |= SETTING_LAYOUT_SAVED | (FLIPPED_BUTTONS ? SETTING_BUTTONS_FLIPPED : 0);
-    saveGameOptions(optionValue, optionsSeen, settingFlags);
-  }
-  setButtonsFlipped(settingFlags & SETTING_BUTTONS_FLIPPED);
   menuNotice = false;
   leftTaps = 0;
   lastLeftTap = testUpSince = 0;
@@ -72,12 +64,6 @@ void GameManager::init() {
     welcome.begin();
     setState(STATE_WELCOME);
   }
-}
-
-void GameManager::setButtonLayout(bool flipped) {
-  settingFlags = (settingFlags & ~SETTING_BUTTONS_FLIPPED) | SETTING_LAYOUT_SAVED | (flipped ? SETTING_BUTTONS_FLIPPED : 0);
-  saveGameOptions(optionValue, optionsSeen, settingFlags);
-  setButtonsFlipped(flipped);
 }
 
 void GameManager::acknowledgeTour() {
@@ -111,7 +97,7 @@ bool GameManager::checkTestEntry() {
 }
 
 void GameManager::startTutorial() {
-  tutorial.begin(!(settingFlags & SETTING_TUTORIAL_DONE));   // the first-boot tour also learns the button layout
+  tutorial.begin();
   setState(STATE_TUTORIAL);
 }
 
