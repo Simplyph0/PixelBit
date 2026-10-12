@@ -1,8 +1,18 @@
 #include "snake.h"
 #include "display.h"
 #include "input.h"
+#include "fx.h"
 
 SnakeGame snakeGame;
+
+static const char* const WALL_VALUES[] = {"SOLID", "WRAP"};
+static const GameOption OPT_WALLS = {"WALLS", 2, WALL_VALUES, 0, false};
+
+const GameOption* SnakeGame::option(int i) { return i == 0 ? &OPT_DIFFICULTY : &OPT_WALLS; }
+
+// Start speed (ms per step) and the fastest it gets, by level
+static const int START_SPEED[DIFFICULTY_LEVELS] = {380, 300, 240, 190, 150};
+static const int FAST_SPEED[DIFFICULTY_LEVELS]  = {200, 100,  90,  70,  55};
 
 void SnakeGame::init() {
   snakeLength = 3;
@@ -11,10 +21,10 @@ void SnakeGame::init() {
   snake[2] = {GRID_WIDTH/2-2, GRID_HEIGHT/2};
   
   direction = 0; // right
-  nextDirection = 0;
-  directionChanged = false;
+  queued = 0;
   score = 0;
-  gameSpeed = 300;
+  gameSpeed = START_SPEED[level];
+  minSpeed = FAST_SPEED[level];
   gameOver = false;
   lastMoveTime = 0;
   
@@ -25,8 +35,11 @@ void SnakeGame::update() {
   handleInput();
   
   if (millis() - lastMoveTime > gameSpeed) {
-    direction = nextDirection;
-    directionChanged = false;
+    if (queued) {
+      direction = queue[0];
+      queue[0] = queue[1];
+      queued--;
+    }
     
     moveSnake();
     if (checkCollisions()) {
@@ -69,44 +82,40 @@ void SnakeGame::draw() {
   display.print(F("Score: "));
   display.print(score);
   
-  updateDisplay();
 }
 
+// Turns are queued (two deep), so a quick "up, left" within one step is not
+// lost. A turn that reverses the snake or repeats the last one is ignored.
 void SnakeGame::handleInput() {
-  if (directionChanged) return;
-  
-  int newDirection = nextDirection;
-  
-  if (buttons.upPressed && newDirection != 1) {
-    nextDirection = 3;
-    directionChanged = true;
-  }
-  else if (buttons.downPressed && newDirection != 3) {
-    nextDirection = 1;
-    directionChanged = true;
-  }
-  else if (buttons.leftPressed && newDirection != 0) {
-    nextDirection = 2;
-    directionChanged = true;
-  }
-  else if (buttons.rightPressed && newDirection != 2) {
-    nextDirection = 0;
-    directionChanged = true;
-  }
+  int want = -1;
+  if (buttons.upPressed) want = 3;
+  else if (buttons.downPressed) want = 1;
+  else if (buttons.leftPressed) want = 2;
+  else if (buttons.rightPressed) want = 0;
+  if (want < 0 || queued >= 2) return;
+
+  int last = queued ? queue[queued - 1] : direction;
+  if (want == last || want == (last + 2) % 4) return;
+  queue[queued++] = want;
 }
 
 void SnakeGame::generateFood() {
-  bool validPosition = false;
-  
-  while (!validPosition) {
-    food.x = random(0, GRID_WIDTH);
-    food.y = random(0, GRID_HEIGHT);
-    
-    validPosition = true;
-    for (int i = 0; i < snakeLength; i++) {
-      if (snake[i].x == food.x && snake[i].y == food.y) {
-        validPosition = false;
-        break;
+  // Pick uniformly among the free cells; cannot spin forever on a full board
+  int freeCells = GRID_WIDTH * GRID_HEIGHT - snakeLength;
+  if (freeCells <= 0) return;
+  int pick = random(0, freeCells);
+
+  for (int y = 0; y < GRID_HEIGHT; y++) {
+    for (int x = 0; x < GRID_WIDTH; x++) {
+      bool occupied = false;
+      for (int i = 0; i < snakeLength; i++) {
+        if (snake[i].x == x && snake[i].y == y) { occupied = true; break; }
+      }
+      if (occupied) continue;
+      if (pick-- == 0) {
+        food.x = x;
+        food.y = y;
+        return;
       }
     }
   }
@@ -132,10 +141,13 @@ void SnakeGame::moveSnake() {
 bool SnakeGame::checkCollisions() {
   Point head = snake[0];
   
-  // Wall collision
+  // Wall: deadly, or the way round when wrapping
   if (head.x < 0 || head.x >= GRID_WIDTH || 
       head.y < 0 || head.y >= GRID_HEIGHT) {
-    return true;
+    if (!wrap) return true;
+    snake[0].x = (head.x + GRID_WIDTH) % GRID_WIDTH;
+    snake[0].y = (head.y + GRID_HEIGHT) % GRID_HEIGHT;
+    head = snake[0];
   }
   
   // Self collision
@@ -148,10 +160,12 @@ bool SnakeGame::checkCollisions() {
   // Food collision
   if (head.x == food.x && head.y == food.y) {
     score++;
-    snakeLength++;
+    // Stop growing at the buffer size instead of writing past it
+    if (snakeLength < MAX_SNAKE_LENGTH) snakeLength++;
     
-    if (gameSpeed > 100) {
-      gameSpeed -= 10;
+    fxPop(food.x * GRID_SIZE, food.y * GRID_SIZE, 1);
+    if (gameSpeed > minSpeed) {
+      gameSpeed = max(minSpeed, gameSpeed - 10);
     }
     
     generateFood();

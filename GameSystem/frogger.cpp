@@ -1,316 +1,264 @@
 #include "frogger.h"
 #include "display.h"
 #include "input.h"
+#include "fx.h"
 
 FroggerGame froggerGame;
 
+// Speed multiplier and extra gap tightness by option level
+static const float SPEED_MULT[DIFFICULTY_LEVELS] = {0.7, 0.9, 1.0, 1.2, 1.4};
+static const int GAP_TIGHTEN[DIFFICULTY_LEVELS]  = {-8, -3, 0, 5, 10};   // positive: sparser logs, denser traffic
+
+// A random gap for a lane. Harder levels mean fewer cars (roomier road gaps are
+// easier, so they shrink) and sparser logs (their gaps grow).
+int FroggerGame::gapFor(int row) {
+  Lane& lane = lanes[row];
+  int gap = random(lane.minGap, lane.maxGap + 1);
+  return gap + (row <= 3 ? GAP_TIGHTEN[difficulty] : -GAP_TIGHTEN[difficulty]);
+}
+
 void FroggerGame::init() {
-  resetFrog();
-  
-  // Initialize cars
-  for (int i = 0; i < MAX_CARS; i++) {
-    cars[i].active = false;
-  }
-  
-  // Initialize logs
-  for (int i = 0; i < MAX_LOGS; i++) {
-    logs[i].active = false;
-  }
-  
   score = 0;
   lives = 3;
+  level = 1;
   gameOver = false;
-  lastUpdate = millis();
-  lastSpawn = millis();
-  highestY = SCREEN_HEIGHT - SAFE_ZONE_HEIGHT;
+  setupLanes();
+  resetFrog();
 }
 
-void FroggerGame::update() {
-  handleInput();
-  
-  unsigned long currentTime = millis();
-  
-  if (currentTime - lastUpdate > 100) { // 10 FPS for smooth movement
-    updateCars();
-    updateLogs();
-    updateFrog();
-    
-    // Spawn new obstacles
-    if (currentTime - lastSpawn > 1500) { // Spawn every 1.5 seconds
-      spawnCar();
-      spawnLog();
-      lastSpawn = currentTime;
-    }
-    
-    lastUpdate = currentTime;
-  }
-  
-  // Check collisions
-  if (checkCarCollision() || checkWaterCollision()) {
-    lives--;
-    if (lives <= 0) {
-      gameOver = true;
-    } else {
-      resetFrog();
-    }
-  }
-  
-  // Check win condition (reached top)
-  if (frog.y <= SAFE_ZONE_HEIGHT) {
-    score += 100;
-    if (frog.y < highestY) {
-      score += 50;
-      highestY = frog.y;
-    }
-    resetFrog();
-  }
-}
+// Lane layout: alternating directions, a different speed for each
+void FroggerGame::setupLanes() {
+  memset(lanes, 0, sizeof(lanes));
 
-void FroggerGame::draw() {
-  clearDisplay();
-  
-  drawRoad();
-  drawCars();
-  drawLogs();
-  drawFrog();
-  drawUI();
-  
-  updateDisplay();
-}
+  // river: logs (rows 1..3), road: cars (rows 5..7)
+  const float riverSpeed[3] = {0.45, 0.65, 0.5};
+  const float roadSpeed[3]  = {0.7, 1.1, 0.85};
+  for (int i = 0; i < 3; i++) {
+    Lane& river = lanes[1 + i];
+    river.dir = (i % 2 == 0) ? -1 : 1;
+    river.speed = riverSpeed[i];
+    river.minGap = 14; river.maxGap = 30;
+    river.minW = 20; river.maxW = 32;
 
-void FroggerGame::handleInput() {
-  if (buttons.upPressed && frog.y > 0) {
-    frog.y -= LANE_HEIGHT;
-    frog.onLog = false;
+    Lane& road = lanes[5 + i];
+    road.dir = (i % 2 == 0) ? 1 : -1;
+    road.speed = roadSpeed[i];
+    road.minGap = 26; road.maxGap = 60;
+    road.minW = 9; road.maxW = 15;
   }
-  else if (buttons.downPressed && frog.y < SCREEN_HEIGHT - FROG_SIZE) {
-    frog.y += LANE_HEIGHT;
-    frog.onLog = false;
-  }
-  else if (buttons.leftPressed && frog.x > 0) {
-    frog.x -= FROG_SIZE;
-  }
-  else if (buttons.rightPressed && frog.x < SCREEN_WIDTH - FROG_SIZE) {
-    frog.x += FROG_SIZE;
+
+  // Fill each lane with objects already on the way
+  for (int r = 1; r < ROWS; r++) {
+    Lane& lane = lanes[r];
+    if (lane.speed == 0) continue;
+    float x = random(0, 24);
+    for (int k = 0; k < MAX_LANE_OBJECTS && x < SCREEN_WIDTH; k++) {
+      lane.objects[k].active = true;
+      lane.objects[k].w = random(lane.minW, lane.maxW + 1);
+      lane.objects[k].x = x;
+      x += lane.objects[k].w + gapFor(r);
+    }
+    lane.sinceSpawn = 0;
+    lane.nextGap = lane.minGap;
   }
 }
 
 void FroggerGame::resetFrog() {
-  frog.x = SCREEN_WIDTH / 2 - FROG_SIZE / 2;
-  frog.y = SCREEN_HEIGHT - SAFE_ZONE_HEIGHT;
-  frog.onLog = false;
-  frog.logIndex = -1;
+  frogX = SCREEN_WIDTH / 2 - FROG_W / 2;
+  frogRow = ROWS - 1;
+  highestRow = ROWS - 1;
+  resumeAt = millis() + 500;
 }
 
-void FroggerGame::updateFrog() {
-  // If frog is on a log, move with it
-  if (frog.onLog && frog.logIndex >= 0 && frog.logIndex < MAX_LOGS && logs[frog.logIndex].active) {
-    frog.x += logs[frog.logIndex].speed;
-    
-    // Check if frog falls off log
-    if (frog.x + FROG_SIZE < logs[frog.logIndex].x || 
-        frog.x > logs[frog.logIndex].x + logs[frog.logIndex].width) {
-      frog.onLog = false;
-      frog.logIndex = -1;
-    }
+void FroggerGame::update() {
+  handleInput();
+  if (gameOver || millis() < resumeAt) return;
+
+  updateLanes();
+
+  // Drifting with a log
+  if (frogRow >= 1 && frogRow <= 3) {
+    Lane& lane = lanes[frogRow];
+    if (onRiver()) frogX += lane.dir * lane.speed * SPEED_MULT[difficulty] * (1 + 0.08 * (level - 1));
   }
-  
-  // Keep frog on screen
-  if (frog.x < 0) frog.x = 0;
-  if (frog.x > SCREEN_WIDTH - FROG_SIZE) frog.x = SCREEN_WIDTH - FROG_SIZE;
-  
-  // Debug info
-  Serial.print("Frog: ");
-  Serial.print(frog.x);
-  Serial.print(",");
-  Serial.print(frog.y);
-  Serial.print(" OnLog: ");
-  Serial.print(frog.onLog);
-  Serial.print(" LogIndex: ");
-  Serial.println(frog.logIndex);
-}
 
-void FroggerGame::updateCars() {
-  for (int i = 0; i < MAX_CARS; i++) {
-    if (cars[i].active) {
-      if (cars[i].direction) {
-        cars[i].x += cars[i].speed;
-        if (cars[i].x > SCREEN_WIDTH) cars[i].active = false;
-      } else {
-        cars[i].x -= cars[i].speed;
-        if (cars[i].x < -8) cars[i].active = false;
-      }
-    }
+  if (frogRow >= 1 && frogRow <= 3 && (!onRiver() || frogX < -FROG_W / 2 || frogX > SCREEN_WIDTH - FROG_W / 2)) {
+    die();
+    return;
+  }
+  if (frogRow >= 5 && frogRow <= 7 && hitByCar()) {
+    die();
+    return;
+  }
+
+  // Reached the far bank
+  if (frogRow == 0) {
+    int gained = 100 * level;
+    score += gained;
+    fxPop((int)frogX + 2, 6, gained);
+    level++;
+    resetFrog();
   }
 }
 
-void FroggerGame::updateLogs() {
-  for (int i = 0; i < MAX_LOGS; i++) {
-    if (logs[i].active) {
-      logs[i].x += logs[i].speed;
-      if (logs[i].x > SCREEN_WIDTH || logs[i].x < -logs[i].width) {
-        logs[i].active = false;
-      }
-    }
+void FroggerGame::die() {
+  lives--;
+  fxPopText((int)frogX + 2, frogRow * ROW_H, "SPLAT");
+  if (lives <= 0) {
+    gameOver = true;
+  } else {
+    resetFrog();
+    resumeAt = millis() + 900;
   }
 }
 
-void FroggerGame::spawnCar() {
-  for (int i = 0; i < MAX_CARS; i++) {
-    if (!cars[i].active) {
-      cars[i].active = true;
-      // Cars only in road area: bottom safe zone up to river
-      int roadStartY = SCREEN_HEIGHT - SAFE_ZONE_HEIGHT - (ROAD_LANES * LANE_HEIGHT);
-      int roadEndY = SCREEN_HEIGHT - SAFE_ZONE_HEIGHT;
-      cars[i].y = roadStartY + (random(0, ROAD_LANES) * LANE_HEIGHT);
-      
-      cars[i].direction = random(0, 2);
-      cars[i].speed = random(1, 3);
-      
-      if (cars[i].direction) {
-        cars[i].x = -8;
-      } else {
-        cars[i].x = SCREEN_WIDTH;
-      }
-      break;
+void FroggerGame::handleInput() {
+  if (gameOver || millis() < resumeAt) return;
+
+  if (buttons.upPressed && frogRow > 0) {
+    frogRow--;
+    if (frogRow < highestRow) {
+      highestRow = frogRow;
+      score += 10;
     }
+  }
+  else if (buttons.downPressed && frogRow < ROWS - 1) {
+    frogRow++;
+  }
+  else if (buttons.leftPressed) {
+    frogX = max(0.0f, frogX - FROG_W);
+  }
+  else if (buttons.rightPressed) {
+    frogX = min((float)(SCREEN_WIDTH - FROG_W), frogX + FROG_W);
   }
 }
 
-void FroggerGame::spawnLog() {
-  for (int i = 0; i < MAX_LOGS; i++) {
-    if (!logs[i].active) {
-      logs[i].active = true;
-      // Logs only in river area: safe zone to safe zone + river lanes
-      logs[i].y = SAFE_ZONE_HEIGHT + (random(0, RIVER_LANES) * LANE_HEIGHT);
-      logs[i].width = random(20, 40); // Longer logs for easier gameplay
-      logs[i].speed = random(1, 2); // Slower speed
-      logs[i].x = -logs[i].width;
-      break;
-    }
+void FroggerGame::spawn(Lane& lane) {
+  for (int k = 0; k < MAX_LANE_OBJECTS; k++) {
+    LaneObject& o = lane.objects[k];
+    if (o.active) continue;
+    o.active = true;
+    o.w = random(lane.minW, lane.maxW + 1);
+    o.x = lane.dir > 0 ? -o.w : SCREEN_WIDTH;
+    lane.sinceSpawn = 0;
+    lane.nextGap = o.w + gapFor(&lane - lanes);
+    return;
   }
 }
 
-bool FroggerGame::checkCarCollision() {
-  // Check if frog is in road area
-  int roadStartY = SCREEN_HEIGHT - SAFE_ZONE_HEIGHT - (ROAD_LANES * LANE_HEIGHT);
-  int roadEndY = SCREEN_HEIGHT - SAFE_ZONE_HEIGHT;
-  
-  if (frog.y < roadStartY || frog.y >= roadEndY) {
-    return false; // Not in road area
-  }
-  
-  for (int i = 0; i < MAX_CARS; i++) {
-    if (cars[i].active) {
-      if (frog.x + FROG_SIZE > cars[i].x && frog.x < cars[i].x + 8 &&
-          frog.y + FROG_SIZE > cars[i].y && frog.y < cars[i].y + 6) {
-        return true;
-      }
+void FroggerGame::updateLanes() {
+  float mult = SPEED_MULT[difficulty] * (1 + 0.08 * (level - 1));
+  for (int r = 1; r < ROWS; r++) {
+    Lane& lane = lanes[r];
+    if (lane.speed == 0) continue;
+    float step = lane.dir * lane.speed * mult;
+
+    for (int k = 0; k < MAX_LANE_OBJECTS; k++) {
+      LaneObject& o = lane.objects[k];
+      if (!o.active) continue;
+      o.x += step;
+      if ((lane.dir > 0 && o.x > SCREEN_WIDTH) || (lane.dir < 0 && o.x + o.w < 0)) o.active = false;
     }
+
+    lane.sinceSpawn += fabs(step);
+    if (lane.sinceSpawn >= max(8.0f, lane.nextGap)) spawn(lane);
+  }
+}
+
+// The frog is on a log when its middle is over one
+bool FroggerGame::onRiver() {
+  Lane& lane = lanes[frogRow];
+  float mid = frogX + FROG_W / 2.0;
+  for (int k = 0; k < MAX_LANE_OBJECTS; k++) {
+    LaneObject& o = lane.objects[k];
+    if (o.active && mid >= o.x && mid <= o.x + o.w) return true;
   }
   return false;
 }
 
-bool FroggerGame::checkWaterCollision() {
-  // Check if frog is in water area
-  if (frog.y < SAFE_ZONE_HEIGHT + (RIVER_LANES * LANE_HEIGHT) &&
-      frog.y >= SAFE_ZONE_HEIGHT) {
-    
-    // First check if frog is on a log
-    frog.onLog = false;
-    frog.logIndex = -1;
-    
-    for (int i = 0; i < MAX_LOGS; i++) {
-      if (logs[i].active) {
-        // More generous collision detection for logs
-        if (frog.x + FROG_SIZE > logs[i].x && 
-            frog.x < logs[i].x + logs[i].width &&
-            frog.y + FROG_SIZE > logs[i].y && 
-            frog.y < logs[i].y + 6) {
-          frog.onLog = true;
-          frog.logIndex = i;
-          return false; // Safe on log, no drowning
-        }
+bool FroggerGame::hitByCar() {
+  Lane& lane = lanes[frogRow];
+  for (int k = 0; k < MAX_LANE_OBJECTS; k++) {
+    LaneObject& o = lane.objects[k];
+    if (o.active && frogX + FROG_W > o.x + 1 && frogX < o.x + o.w - 1) return true;
+  }
+  return false;
+}
+
+// ---------------------------------------------------------------------------
+// Drawing
+// ---------------------------------------------------------------------------
+void FroggerGame::draw() {
+  clearDisplay();
+  drawLanes();
+  drawFrog();
+  drawUI();
+}
+
+void FroggerGame::drawLanes() {
+  // Banks: lines above the goal row, the median and the start row
+  display.drawFastHLine(0, 1 * ROW_H, SCREEN_WIDTH, SSD1306_WHITE);
+  display.drawFastHLine(0, 4 * ROW_H, SCREEN_WIDTH, SSD1306_WHITE);
+  display.drawFastHLine(0, 5 * ROW_H, SCREEN_WIDTH, SSD1306_WHITE);
+  display.drawFastHLine(0, 8 * ROW_H, SCREEN_WIDTH, SSD1306_WHITE);
+
+  // Water: a dotted pattern that drifts
+  int ripple = (millis() / 300) % 2;
+  for (int r = 1; r <= 3; r++) {
+    for (int x = (r + ripple) % 4; x < SCREEN_WIDTH; x += 8) {
+      display.drawPixel(x, r * ROW_H + 5, SSD1306_WHITE);
+    }
+  }
+
+  // Dashed lane dividers on the road
+  for (int r = 6; r <= 7; r++) {
+    for (int x = 0; x < SCREEN_WIDTH; x += 8) display.drawPixel(x, r * ROW_H, SSD1306_WHITE);
+  }
+
+  for (int r = 1; r < ROWS; r++) {
+    Lane& lane = lanes[r];
+    if (lane.speed == 0) continue;
+    int y = r * ROW_H;
+    for (int k = 0; k < MAX_LANE_OBJECTS; k++) {
+      LaneObject& o = lane.objects[k];
+      if (!o.active) continue;
+      int x = (int)o.x;
+      if (r <= 3) {
+        // Log with bark marks
+        display.fillRect(x, y + 1, o.w, 5, SSD1306_WHITE);
+        for (int bx = x + 3; bx < x + o.w - 2; bx += 5) display.drawPixel(bx, y + 3, SSD1306_BLACK);
+      } else {
+        // Car or truck, windows towards its direction of travel
+        display.fillRect(x, y + 1, o.w, 5, SSD1306_WHITE);
+        int wx = lane.dir > 0 ? x + o.w - 4 : x + 1;
+        display.fillRect(wx, y + 2, 3, 2, SSD1306_BLACK);
+        display.drawPixel(x + 2, y + 6, SSD1306_WHITE);
+        display.drawPixel(x + o.w - 3, y + 6, SSD1306_WHITE);
       }
     }
-    
-    // If we reach here, frog is in water but not on any log
-    return true; // Drowns
   }
-  
-  return false; // Not in water area
 }
 
 void FroggerGame::drawFrog() {
-  display.fillRect(frog.x, frog.y, FROG_SIZE, FROG_SIZE, SSD1306_WHITE);
-  // Draw simple eyes
-  display.drawPixel(frog.x + 1, frog.y + 1, SSD1306_BLACK);
-  display.drawPixel(frog.x + 3, frog.y + 1, SSD1306_BLACK);
-}
-
-void FroggerGame::drawCars() {
-  for (int i = 0; i < MAX_CARS; i++) {
-    if (cars[i].active) {
-      display.fillRect(cars[i].x, cars[i].y, 8, 6, SSD1306_WHITE);
-      // Draw windows
-      display.drawPixel(cars[i].x + 2, cars[i].y + 2, SSD1306_BLACK);
-      display.drawPixel(cars[i].x + 6, cars[i].y + 2, SSD1306_BLACK);
-    }
-  }
-}
-
-void FroggerGame::drawLogs() {
-  for (int i = 0; i < MAX_LOGS; i++) {
-    if (logs[i].active) {
-      display.fillRect(logs[i].x, logs[i].y, logs[i].width, 6, SSD1306_WHITE);
-      // Draw log texture
-      for (int x = logs[i].x; x < logs[i].x + logs[i].width; x += 4) {
-        display.drawPixel(x, logs[i].y + 1, SSD1306_BLACK);
-        display.drawPixel(x + 2, logs[i].y + 4, SSD1306_BLACK);
-      }
-    }
-  }
-}
-
-void FroggerGame::drawRoad() {
-  // Draw safe zones
-  display.drawLine(0, SAFE_ZONE_HEIGHT, SCREEN_WIDTH, SAFE_ZONE_HEIGHT, SSD1306_WHITE);
-  display.drawLine(0, SCREEN_HEIGHT - SAFE_ZONE_HEIGHT, SCREEN_WIDTH, SCREEN_HEIGHT - SAFE_ZONE_HEIGHT, SSD1306_WHITE);
-  
-  // Draw middle line between river and road
-  int middleY = SAFE_ZONE_HEIGHT + (RIVER_LANES * LANE_HEIGHT);
-  display.drawLine(0, middleY, SCREEN_WIDTH, middleY, SSD1306_WHITE);
-  
-  // Draw road lane dividers
-  int roadStartY = SCREEN_HEIGHT - SAFE_ZONE_HEIGHT - (ROAD_LANES * LANE_HEIGHT);
-  for (int i = 1; i < ROAD_LANES; i++) {
-    int y = roadStartY + (i * LANE_HEIGHT);
-    for (int x = 0; x < SCREEN_WIDTH; x += 8) {
-      display.drawPixel(x, y, SSD1306_WHITE);
-    }
-  }
-  
-  // Draw river lane dividers
-  for (int i = 1; i < RIVER_LANES; i++) {
-    int y = SAFE_ZONE_HEIGHT + (i * LANE_HEIGHT);
-    for (int x = 0; x < SCREEN_WIDTH; x += 12) {
-      display.drawPixel(x, y, SSD1306_WHITE);
-      display.drawPixel(x + 2, y, SSD1306_WHITE);
-    }
-  }
+  if (millis() < resumeAt && (millis() / 120) % 2) return;   // blinks while respawning
+  int x = (int)frogX, y = frogRow * ROW_H + 1;
+  display.fillRect(x, y + 1, FROG_W, FROG_H - 1, SSD1306_WHITE);
+  display.drawPixel(x, y, SSD1306_WHITE);
+  display.drawPixel(x + FROG_W - 1, y, SSD1306_WHITE);
+  display.drawPixel(x + 1, y + 1, SSD1306_BLACK);
+  display.drawPixel(x + FROG_W - 2, y + 1, SSD1306_BLACK);
 }
 
 void FroggerGame::drawUI() {
+  // The goal row is free for the score line
   display.setTextSize(1);
   display.setTextColor(SSD1306_WHITE);
-  
-  // Score
   display.setCursor(0, 0);
-  display.print(F("Score:"));
   display.print(score);
-  
-  // Lives
-  display.setCursor(SCREEN_WIDTH - 45, 0);
-  display.print(F("Lives:"));
-  display.print(lives);
+  display.setCursor(SCREEN_WIDTH / 2 - 9, 0);
+  display.print(F("L"));
+  display.print(level);
+  for (int i = 0; i < lives; i++) {
+    display.fillRect(SCREEN_WIDTH - 7 - i * 7, 1, 5, 4, SSD1306_WHITE);
+  }
 }

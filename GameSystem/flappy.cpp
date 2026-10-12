@@ -1,8 +1,14 @@
 #include "flappy.h"
 #include "display.h"
 #include "input.h"
+#include "fx.h"
 
 FlappyGame flappyGame;
+
+// Gap between the pipes, start speed and top speed (px per frame), by level
+static const int GAP[DIFFICULTY_LEVELS]          = {28, 23, 20, 17, 15};
+static const float START_SPEED[DIFFICULTY_LEVELS] = {1.4, 1.8, 2.0, 2.3, 2.6};
+static const float TOP_SPEED[DIFFICULTY_LEVELS]   = {2.2, 2.8, 3.2, 3.5, 3.8};
 
 void FlappyGame::init() {
   // Initialize bird
@@ -12,18 +18,17 @@ void FlappyGame::init() {
   
   // Initialize pipes
   for (int i = 0; i < MAX_PIPES; i++) {
-    pipes[i].x = -1; // Mark as inactive
+    pipes[i].active = false;
     pipes[i].passed = false;
   }
   
   score = 0;
   gameOver = false;
-  lastUpdate = millis();
-  lastPipeSpawn = millis();
-  pipeSpawnInterval = 2000; // 2 seconds between pipes
   gravity = 0.25;
   jumpStrength = -2.5;
-  gameSpeed = 1.3;
+  pipeGap = GAP[level];
+  gameSpeed = START_SPEED[level];
+  maxSpeed = TOP_SPEED[level];
   
   // Spawn first pipe
   spawnPipe();
@@ -31,10 +36,6 @@ void FlappyGame::init() {
 
 void FlappyGame::update() {
   if (gameOver) return;
-  
-  unsigned long currentTime = millis();
-  float deltaTime = (currentTime - lastUpdate) / 16.0; // Normalize to ~60fps
-  lastUpdate = currentTime;
   
   handleInput();
   updateBird();
@@ -44,11 +45,10 @@ void FlappyGame::update() {
     gameOver = true;
   }
   
-  // Spawn new pipes
-  if (currentTime - lastPipeSpawn > pipeSpawnInterval) {
-    spawnPipe();
-    lastPipeSpawn = currentTime;
-  }
+  // Spawn a new pipe once the last one is far enough along
+  float rightmost = -1000;
+  for (int i = 0; i < MAX_PIPES; i++) if (pipes[i].active && pipes[i].x > rightmost) rightmost = pipes[i].x;
+  if (rightmost < SCREEN_WIDTH - PIPE_SPACING) spawnPipe();
 }
 
 void FlappyGame::draw() {
@@ -64,7 +64,6 @@ void FlappyGame::draw() {
   display.setCursor(SCREEN_WIDTH - 30, 5);
   display.print(score);
   
-  updateDisplay();
 }
 
 void FlappyGame::handleInput() {
@@ -76,9 +75,10 @@ void FlappyGame::handleInput() {
 void FlappyGame::spawnPipe() {
   // Find an inactive pipe slot
   for (int i = 0; i < MAX_PIPES; i++) {
-    if (pipes[i].x < 0) {
+    if (!pipes[i].active) {
+      pipes[i].active = true;
       pipes[i].x = SCREEN_WIDTH;
-      pipes[i].gapY = random(15, SCREEN_HEIGHT - PIPE_GAP - 10);
+      pipes[i].gapY = random(15, SCREEN_HEIGHT - pipeGap - 10);
       pipes[i].passed = false;
       break;
     }
@@ -99,23 +99,24 @@ void FlappyGame::updateBird() {
 
 void FlappyGame::updatePipes() {
   for (int i = 0; i < MAX_PIPES; i++) {
-    if (pipes[i].x >= 0) {
+    if (pipes[i].active) {
       pipes[i].x -= gameSpeed;
       
       // Check if bird passed pipe
       if (!pipes[i].passed && pipes[i].x + PIPE_WIDTH < bird.x) {
         pipes[i].passed = true;
         score++;
+        fxPop((int)bird.x + 6, (int)bird.y - 4, 1);
         
         // Increase game speed slightly
-        if (gameSpeed < 3.0) {
+        if (gameSpeed < maxSpeed) {
           gameSpeed += 0.1;
         }
       }
       
       // Remove pipe when off screen
       if (pipes[i].x < -PIPE_WIDTH) {
-        pipes[i].x = -1;
+        pipes[i].active = false;
       }
     }
   }
@@ -129,11 +130,11 @@ bool FlappyGame::checkCollisions() {
   
   // Pipe collision
   for (int i = 0; i < MAX_PIPES; i++) {
-    if (pipes[i].x >= 0) {
+    if (pipes[i].active) {
       // Check if bird is within pipe x range
       if (bird.x + BIRD_SIZE > pipes[i].x && bird.x < pipes[i].x + PIPE_WIDTH) {
         // Check if bird hits top or bottom pipe
-        if (bird.y < pipes[i].gapY || bird.y + BIRD_SIZE > pipes[i].gapY + PIPE_GAP) {
+        if (bird.y < pipes[i].gapY || bird.y + BIRD_SIZE > pipes[i].gapY + pipeGap) {
           return true;
         }
       }
@@ -153,17 +154,17 @@ void FlappyGame::drawBird() {
 
 void FlappyGame::drawPipes() {
   for (int i = 0; i < MAX_PIPES; i++) {
-    if (pipes[i].x >= 0) {
+    if (pipes[i].active) {
       // Top pipe
       display.fillRect(pipes[i].x, 0, PIPE_WIDTH, pipes[i].gapY, SSD1306_WHITE);
       
       // Bottom pipe
-      display.fillRect(pipes[i].x, pipes[i].gapY + PIPE_GAP, PIPE_WIDTH, 
-                       SCREEN_HEIGHT - pipes[i].gapY - PIPE_GAP - 5, SSD1306_WHITE);
+      display.fillRect(pipes[i].x, pipes[i].gapY + pipeGap, PIPE_WIDTH, 
+                       SCREEN_HEIGHT - pipes[i].gapY - pipeGap - 5, SSD1306_WHITE);
       
       // Pipe caps (make them look more like pipes)
       display.fillRect(pipes[i].x - 1, pipes[i].gapY - 3, PIPE_WIDTH + 2, 3, SSD1306_WHITE);
-      display.fillRect(pipes[i].x - 1, pipes[i].gapY + PIPE_GAP, PIPE_WIDTH + 2, 3, SSD1306_WHITE);
+      display.fillRect(pipes[i].x - 1, pipes[i].gapY + pipeGap, PIPE_WIDTH + 2, 3, SSD1306_WHITE);
     }
   }
 }

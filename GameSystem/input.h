@@ -15,11 +15,8 @@ struct ButtonState {
 };
 
 extern ButtonState buttons;
-extern unsigned long lastButtonTime;
 
 void initInput();
 void updateInput();
-bool isButtonPressed(int pin);
-bool wasButtonJustPressed(int pin);
 
 #endif

@@ -4,6 +4,11 @@
 
 HelicopterGame helicopterGame;
 
+// How narrow the cave gets and how fast it scrolls (px per frame), by level
+static const int MIN_GAP[DIFFICULTY_LEVELS]       = {26, 22, 20, 18, 16};
+static const int MAX_GAP[DIFFICULTY_LEVELS]       = {40, 36, 33, 30, 27};
+static const float START_SPEED[DIFFICULTY_LEVELS] = {0.9, 1.1, 1.4, 1.7, 2.0};
+
 void HelicopterGame::init() {
   heli.y = SCREEN_HEIGHT / 2;
   heli.velocity = 0;
@@ -11,7 +16,9 @@ void HelicopterGame::init() {
   score = 0;
   gameOver = false;
   lastUpdate = millis();
-  gameSpeed = 1.5;
+  gameSpeed = START_SPEED[level];
+  minGap = MIN_GAP[level];
+  maxGap = MAX_GAP[level];
   gravity = 0.15;
   lift = -1.0;
   caveOffset = 0;
@@ -34,9 +41,9 @@ void HelicopterGame::update() {
     
     score++;
     
-    // Gradually increase difficulty
-    if (score % 500 == 0 && gameSpeed < 3.0) {
-      gameSpeed += 0.2;
+    // Gradually increase difficulty, smoothly now that the scroll is not rounded to whole pixels
+    if (score % 250 == 0 && gameSpeed < 3.0) {
+      gameSpeed += 0.1;
     }
     
     lastUpdate = currentTime;
@@ -50,7 +57,6 @@ void HelicopterGame::draw() {
   drawHelicopter();
   drawUI();
   
-  updateDisplay();
 }
 
 void HelicopterGame::handleInput() {
@@ -60,12 +66,12 @@ void HelicopterGame::handleInput() {
 }
 
 void HelicopterGame::generateCave() {
-  int currentGap = 25;
+  int currentGap = (minGap + maxGap) / 2;
   int currentTop = 15;
   
   for (int i = 0; i < CAVE_SEGMENTS; i++) {
     cave[i].gapHeight = currentGap + random(-3, 4);
-    cave[i].gapHeight = constrain(cave[i].gapHeight, 18, 35);
+    cave[i].gapHeight = constrain(cave[i].gapHeight, minGap, maxGap);
     
     cave[i].topHeight = currentTop + random(-2, 3);
     cave[i].topHeight = constrain(cave[i].topHeight, 5, SCREEN_HEIGHT - cave[i].gapHeight - 5);
@@ -97,7 +103,7 @@ void HelicopterGame::updateCave() {
   
   // When we've scrolled one segment width, shift the cave
   if (caveOffset >= 4) {
-    caveOffset = 0;
+    caveOffset -= 4;
     
     // Shift all segments left
     for (int i = 0; i < CAVE_SEGMENTS - 1; i++) {
@@ -107,7 +113,7 @@ void HelicopterGame::updateCave() {
     // Generate new segment at the end
     int lastIndex = CAVE_SEGMENTS - 1;
     cave[lastIndex].gapHeight = cave[lastIndex - 1].gapHeight + random(-3, 4);
-    cave[lastIndex].gapHeight = constrain(cave[lastIndex].gapHeight, 18, 35);
+    cave[lastIndex].gapHeight = constrain(cave[lastIndex].gapHeight, minGap, maxGap);
     
     cave[lastIndex].topHeight = cave[lastIndex - 1].topHeight + random(-2, 3);
     cave[lastIndex].topHeight = constrain(cave[lastIndex].topHeight, 5, 
@@ -148,7 +154,7 @@ void HelicopterGame::drawHelicopter() {
 
 void HelicopterGame::drawCave() {
   for (int i = 0; i < CAVE_SEGMENTS; i++) {
-    int x = i * 4 - caveOffset;
+    int x = i * 4 - (int)caveOffset;
     
     if (x >= -4 && x < SCREEN_WIDTH) {
       // Draw top wall

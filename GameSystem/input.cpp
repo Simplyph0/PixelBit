@@ -1,8 +1,6 @@
 #include "input.h"
 
 ButtonState buttons;
-unsigned long lastButtonTime = 0;
-ButtonState lastButtons;
 
 void initInput() {
   pinMode(PIN_BUTTON_UP, INPUT_PULLUP);
@@ -11,13 +9,11 @@ void initInput() {
   pinMode(PIN_BUTTON_RIGHT, INPUT_PULLUP);
   
   // Initialize button states
-  buttons = {false, false, false, false, false, false, false, false};
-  lastButtons = buttons;
+  buttons = {};
 }
 
 void updateInput() {
-  // Store previous state
-  lastButtons = buttons;
+  const ButtonState prev = buttons;
   
   // Read current state (inverted because of INPUT_PULLUP)
   buttons.up = (digitalRead(PIN_BUTTON_UP) == LOW);
@@ -26,28 +22,14 @@ void updateInput() {
   buttons.right = (digitalRead(PIN_BUTTON_RIGHT) == LOW);
   
   // Detect button press events (just pressed)
-  buttons.upPressed = buttons.up && !lastButtons.up;
-  buttons.downPressed = buttons.down && !lastButtons.down;
-  buttons.leftPressed = buttons.left && !lastButtons.left;
-  buttons.rightPressed = buttons.right && !lastButtons.right;
-}
+  buttons.upPressed = buttons.up && !prev.up;
+  buttons.downPressed = buttons.down && !prev.down;
+  buttons.leftPressed = buttons.left && !prev.left;
+  buttons.rightPressed = buttons.right && !prev.right;
 
-bool isButtonPressed(int pin) {
-  switch(pin) {
-    case PIN_BUTTON_UP: return buttons.up;
-    case PIN_BUTTON_DOWN: return buttons.down;
-    case PIN_BUTTON_LEFT: return buttons.left;
-    case PIN_BUTTON_RIGHT: return buttons.right;
-    default: return false;
-  }
-}
-
-bool wasButtonJustPressed(int pin) {
-  switch(pin) {
-    case PIN_BUTTON_UP: return buttons.upPressed;
-    case PIN_BUTTON_DOWN: return buttons.downPressed;
-    case PIN_BUTTON_LEFT: return buttons.leftPressed;
-    case PIN_BUTTON_RIGHT: return buttons.rightPressed;
-    default: return false;
+  // Debug: log every press (pin numbers come from config.h)
+  if (buttons.upPressed || buttons.downPressed || buttons.leftPressed || buttons.rightPressed) {
+    LOG("btn pressed: UP=%d DOWN=%d LEFT=%d RIGHT=%d\n", buttons.upPressed, buttons.downPressed,
+        buttons.leftPressed, buttons.rightPressed);
   }
 }

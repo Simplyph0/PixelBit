@@ -2,10 +2,13 @@
 #define FLAPPY_H
 
 #include "config.h"
+#include "game.h"
+#include "ui.h"
 
 #define BIRD_SIZE 3
 #define PIPE_WIDTH 8
-#define PIPE_GAP 20
+#define PIPE_GAP_DEFAULT 20
+#define PIPE_SPACING 96   // px between the left edges of two pipes
 #define MAX_PIPES 3
 
 struct Bird {
@@ -14,20 +17,21 @@ struct Bird {
 };
 
 struct Pipe {
-  int x;
+  float x;
   int gapY;
   bool passed;
+  bool active;
 };
 
-class FlappyGame {
+class FlappyGame : public Game {
 private:
   Bird bird;
   Pipe pipes[MAX_PIPES];
   int score;
   bool gameOver;
-  unsigned long lastUpdate;
-  unsigned long lastPipeSpawn;
-  int pipeSpawnInterval;
+  uint8_t level = DIFFICULTY_DEFAULT;   // option: gap size and speed
+  int pipeGap = PIPE_GAP_DEFAULT;
+  float maxSpeed;
   float gravity;
   float jumpStrength;
   float gameSpeed;
@@ -41,13 +45,17 @@ private:
   void drawGround();
   
 public:
-  void init();
-  void update();
-  void draw();
+  void init() override;
+  void update() override;
+  void draw() override;
   void handleInput();
-  bool isGameOver() { return gameOver; }
-  int getScore() { return score; }
-  const char* getName() { return "FLAPPY BIRD"; }
+  bool isGameOver() override { return gameOver; }
+  int getScore() override { return score; }
+  const char* getName() override { return "FLAPPY BIRD"; }
+
+  int optionCount() override { return 1; }
+  const GameOption* option(int) override { return &OPT_DIFFICULTY; }
+  void setOption(int, int value) override { level = constrain(value, 0, DIFFICULTY_LEVELS - 1); }
 };
 
 extern FlappyGame flappyGame;

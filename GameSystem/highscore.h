@@ -5,32 +5,35 @@
 #include <EEPROM.h>
 
 #define EEPROM_SIZE 512
-#define HIGHSCORE_MAGIC 0xABCD  // Magic number to verify valid data
 #define HIGHSCORE_BASE_ADDR 0
+#define SAVE_SLOTS 32          // upper bound on games a save file can describe
+#define SAVE_MAX_SCORE 999999
 
-struct HighscoreData {
-  uint16_t magic;
-  int scores[MAX_GAMES];
-  uint16_t checksum;
-};
-
+// Save format (version 1), little endian, identical in EEPROM and in exported files:
+//   "GSAV" | version u8 | count u8 | reserved u16 | score i32 x count | crc32 u32
+// The CRC covers everything before it. Because the file states its own game
+// count, saves keep working when games are added in a later firmware.
 class HighscoreManager {
 private:
-  HighscoreData data;
-  bool initialized;
-  
-  uint16_t calculateChecksum();
-  bool isValidData();
+  int scores[MAX_GAMES];
+
+  bool loadFromEEPROM();
+  bool migrateLegacy();
   void resetToDefaults();
-  
+
 public:
   void init();
   void saveHighscore(int gameId, int score);
   int getHighscore(int gameId);
   bool isNewHighscore(int gameId, int score);
   void saveToEEPROM();
-  void loadFromEEPROM();
   void resetAllHighscores();
+
+  // Transplantable saves: a text blob ("GSAV1-" + hex) safe to copy and paste.
+  String exportText();
+  // merge = keep the better score per game, otherwise overwrite from the file.
+  // Returns nullptr on success or a short error message.
+  const char* importText(const String& text, bool merge);
 };
 
 extern HighscoreManager highscoreManager;

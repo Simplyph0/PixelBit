@@ -2,69 +2,70 @@
 #define FROGGER_H
 
 #include "config.h"
+#include "game.h"
+#include "ui.h"
 
-#define FROG_SIZE 4
-#define ROAD_LANES 3
-#define RIVER_LANES 3
-#define MAX_CARS 8
-#define MAX_LOGS 6
-#define LANE_HEIGHT 8
-#define SAFE_ZONE_HEIGHT 6
+#define FROG_W 5
+#define FROG_H 5
+#define ROW_H 7                 // nine rows of 7 px fill the screen
+#define ROWS 9                  // 0 goal, 1-3 river, 4 median, 5-7 road, 8 start
+#define MAX_LANE_OBJECTS 3
 
-struct Frog {
-  int x, y;
-  bool onLog;
-  int logIndex;
-};
-
-struct Car {
-  int x, y;
-  int speed;
-  bool active;
-  bool direction; // true = right, false = left
-};
-
-struct Log {
-  int x, y;
-  int width;
-  int speed;
+struct LaneObject {
+  float x;
+  int8_t w;
   bool active;
 };
 
-class FroggerGame {
+struct Lane {
+  int8_t dir;                   // +1 right, -1 left
+  float speed;                  // px per frame at level 1
+  uint8_t minGap, maxGap;       // gap between objects, px
+  uint8_t minW, maxW;           // object width, px
+  LaneObject objects[MAX_LANE_OBJECTS];
+  float sinceSpawn;             // px travelled since the last object entered
+  float nextGap;
+};
+
+// Cross three lanes of traffic and three of river (hop on the logs) to reach
+// the far bank. Each crossing makes everything faster. Three lives.
+class FroggerGame : public Game {
 private:
-  Frog frog;
-  Car cars[MAX_CARS];
-  Log logs[MAX_LOGS];
+  float frogX;
+  int frogRow;                  // 0 .. ROWS - 1
+  Lane lanes[ROWS];             // rows 1-3 river, 5-7 road; others unused
   int score;
   int lives;
+  int level;
+  int highestRow;               // best row reached since the last respawn
   bool gameOver;
-  unsigned long lastUpdate;
-  unsigned long lastSpawn;
-  int highestY;
-  
+  unsigned long resumeAt;       // short freeze after a death or a crossing
+  uint8_t difficulty = DIFFICULTY_DEFAULT;   // option: base speed and traffic density
+
   void resetFrog();
-  void updateFrog();
-  void updateCars();
-  void updateLogs();
-  void spawnCar();
-  void spawnLog();
-  bool checkCarCollision();
-  bool checkWaterCollision();
+  void setupLanes();
+  void updateLanes();
+  void spawn(Lane& lane);
+  int gapFor(int row);
+  bool onRiver();
+  bool hitByCar();
+  void die();
+  void drawLanes();
   void drawFrog();
-  void drawCars();
-  void drawLogs();
-  void drawRoad();
   void drawUI();
   
 public:
-  void init();
-  void update();
-  void draw();
+  void init() override;
+  void update() override;
+  void draw() override;
   void handleInput();
-  bool isGameOver() { return gameOver; }
-  int getScore() { return score; }
-  const char* getName() { return "FROGGER"; }
+  bool isGameOver() override { return gameOver; }
+  int getScore() override { return score; }
+  const char* getName() override { return "FROGGER"; }
+
+  int optionCount() override { return 1; }
+  const GameOption* option(int) override { return &OPT_DIFFICULTY; }
+  void setOption(int, int value) override { difficulty = constrain(value, 0, DIFFICULTY_LEVELS - 1); }
 };
 
 extern FroggerGame froggerGame;

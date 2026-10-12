@@ -2,6 +2,8 @@
 #define HELICOPTER_H
 
 #include "config.h"
+#include "game.h"
+#include "ui.h"
 
 #define HELI_SIZE 4
 #define CAVE_SEGMENTS 32
@@ -18,7 +20,7 @@ struct CaveSegment {
   int gapHeight;
 };
 
-class HelicopterGame {
+class HelicopterGame : public Game {
 private:
   Helicopter heli;
   CaveSegment cave[CAVE_SEGMENTS];
@@ -28,7 +30,9 @@ private:
   float gameSpeed;
   float gravity;
   float lift;
-  int caveOffset;
+  float caveOffset;
+  uint8_t level = DIFFICULTY_DEFAULT;   // option: cave width and scroll speed
+  int minGap, maxGap;
   
   void generateCave();
   void updateHelicopter();
@@ -39,13 +43,17 @@ private:
   void drawUI();
   
 public:
-  void init();
-  void update();
-  void draw();
+  void init() override;
+  void update() override;
+  void draw() override;
   void handleInput();
-  bool isGameOver() { return gameOver; }
-  int getScore() { return score; }
-  const char* getName() { return "HELICOPTER"; }
+  bool isGameOver() override { return gameOver; }
+  int getScore() override { return score; }
+  const char* getName() override { return "HELICOPTER"; }
+
+  int optionCount() override { return 1; }
+  const GameOption* option(int) override { return &OPT_DIFFICULTY; }
+  void setOption(int, int value) override { level = constrain(value, 0, DIFFICULTY_LEVELS - 1); }
 };
 
 extern HelicopterGame helicopterGame;

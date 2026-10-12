@@ -1,21 +1,31 @@
 #include "game2048.h"
 #include "display.h"
 #include "input.h"
+#include "fx.h"
 
 Game2048 game2048;
 
+static const char* const BOARD_VALUES[] = {"4 X 4", "5 X 5"};
+static const GameOption OPT_BOARD = {"BOARD", 2, BOARD_VALUES, 0, false};
+
+const GameOption* Game2048::option(int) { return &OPT_BOARD; }
+
+// Tile geometry: 4x4 is 14 px tiles with 2 px gaps; 5x5 is 11 px tiles with 1 px gaps
+static int tileSize(int n)   { return n == 4 ? 14 : 11; }
+static int tileMargin(int n) { return n == 4 ? 2 : 1; }
+static int boardX(int n)     { return n == 4 ? 32 : 34; }
+
 void Game2048::init() {
-  // Clear grid
-  for (int y = 0; y < GRID_SIZE_2048; y++) {
-    for (int x = 0; x < GRID_SIZE_2048; x++) {
-      grid[y][x] = 0;
-    }
-  }
-  
+  memset(grid, 0, sizeof(grid));
+
   score = 0;
   gameOver = false;
   hasWon = false;
   moved = false;
+  historyCount = 0;
+  undosLeft = 3;
+  lastMoveAt = 0;
+  chordLatched = false;
   
   // Add two initial tiles
   addRandomTile();
@@ -23,7 +33,7 @@ void Game2048::init() {
 }
 
 void Game2048::update() {
-  handleInput(); // Add input handling to update!
+  handleInput();
   
   if (moved) {
     addRandomTile();
@@ -38,52 +48,102 @@ void Game2048::update() {
 void Game2048::draw() {
   clearDisplay();
   
-  // Draw score (top left, above the grid)
+  // Score and undo (left of the board)
   display.setTextSize(1);
   display.setTextColor(SSD1306_WHITE);
   display.setCursor(0, 0);
   display.print(F("Score:"));
   display.setCursor(0, 10);
   display.print(score);
+  display.setCursor(0, 34);
+  display.print(F("UNDO"));
+  display.setCursor(0, 43);
+  display.print(F("x"));
+  display.print(undosLeft);
+  if (size == 5) {
+    display.setCursor(0, 56);
+    display.print(F("2^N"));
+  }
   
-  // Draw grid
-  for (int y = 0; y < GRID_SIZE_2048; y++) {
-    for (int x = 0; x < GRID_SIZE_2048; x++) {
+  // Grid
+  for (int y = 0; y < size; y++) {
+    for (int x = 0; x < size; x++) {
       drawTile(x, y, grid[y][x]);
     }
   }
   
-  // Draw win message (right side)
   if (hasWon) {
-    display.setCursor(0, 25);
+    display.setCursor(0, 22);
     display.print(F("WIN!"));
   }
-  
-  updateDisplay();
 }
 
+// ---------------------------------------------------------------------------
+// Input: slide with the buttons; LEFT + RIGHT together undo. The first of the
+// two buttons slides as usual before the second arrives, so a chord that comes
+// within a moment of a slide takes that slide back as well.
+// ---------------------------------------------------------------------------
 void Game2048::handleInput() {
-  if (buttons.leftPressed) {
-    moveLeft();
+  unsigned long now = millis();
+
+  if (buttons.left && buttons.right) {
+    if (!chordLatched) {
+      chordLatched = true;
+      bool accidental = now - lastMoveAt < 250 && historyCount > 0;
+      if (accidental) undo();                    // the slide the chord's first button caused
+      if (undosLeft > 0 && historyCount > 0) {
+        undosLeft--;
+        undo();
+        fxPopText(SCREEN_WIDTH - 24, 28, "UNDO");
+      }
+    }
+    return;
   }
-  else if (buttons.rightPressed) {
-    moveRight();
+  if (!buttons.left && !buttons.right) chordLatched = false;
+  if (chordLatched) return;
+
+  int dir = -1;
+  if (buttons.leftPressed) dir = 0;
+  else if (buttons.rightPressed) dir = 1;
+  else if (buttons.upPressed) dir = 2;
+  else if (buttons.downPressed) dir = 3;
+  if (dir < 0) return;
+
+  remember();
+  slide(dir);
+  if (moved) {
+    lastMoveAt = now;
+  } else if (historyCount > 0) {
+    historyCount--;   // nothing moved: forget the snapshot
   }
-  else if (buttons.upPressed) {
-    moveUp();
+}
+
+void Game2048::remember() {
+  if (historyCount == 4) {
+    memmove(&history[0], &history[1], 3 * sizeof(Snapshot));
+    historyCount = 3;
   }
-  else if (buttons.downPressed) {
-    moveDown();
-  }
+  memcpy(history[historyCount].grid, grid, sizeof(grid));
+  history[historyCount].score = score;
+  historyCount++;
+}
+
+void Game2048::undo() {
+  if (historyCount == 0) return;
+  historyCount--;
+  memcpy(grid, history[historyCount].grid, sizeof(grid));
+  score = history[historyCount].score;
+  moved = false;   // the tile that would have been added is gone too
+  gameOver = false;
 }
 
 void Game2048::addRandomTile() {
   // Find empty cells
-  int emptyCells[16][2];
+  uint8_t emptyCells[MAX_GRID_2048 * MAX_GRID_2048][2];
   int count = 0;
   
-  for (int y = 0; y < GRID_SIZE_2048; y++) {
-    for (int x = 0; x < GRID_SIZE_2048; x++) {
+  for (int y = 0; y < size; y++) {
+    for (int x = 0; x < size; x++) {
       if (grid[y][x] == 0) {
         emptyCells[count][0] = x;
         emptyCells[count][1] = y;
@@ -104,18 +164,18 @@ void Game2048::addRandomTile() {
 
 bool Game2048::canMove() {
   // Check for empty cells
-  for (int y = 0; y < GRID_SIZE_2048; y++) {
-    for (int x = 0; x < GRID_SIZE_2048; x++) {
+  for (int y = 0; y < size; y++) {
+    for (int x = 0; x < size; x++) {
       if (grid[y][x] == 0) return true;
     }
   }
   
   // Check for possible merges
-  for (int y = 0; y < GRID_SIZE_2048; y++) {
-    for (int x = 0; x < GRID_SIZE_2048; x++) {
+  for (int y = 0; y < size; y++) {
+    for (int x = 0; x < size; x++) {
       int value = grid[y][x];
-      if ((x < GRID_SIZE_2048 - 1 && grid[y][x + 1] == value) ||
-          (y < GRID_SIZE_2048 - 1 && grid[y + 1][x] == value)) {
+      if ((x < size - 1 && grid[y][x + 1] == value) ||
+          (y < size - 1 && grid[y + 1][x] == value)) {
         return true;
       }
     }
@@ -124,165 +184,94 @@ bool Game2048::canMove() {
   return false;
 }
 
-void Game2048::moveLeft() {
+// Slides every row (dir 0 = left, 1 = right) or column (dir 2 = up, 3 = down)
+// towards that side. Each line is read starting at the wall the tiles move to,
+// so one merge routine serves all four directions.
+void Game2048::slide(int dir) {
   bool hasMoved = false;
-  
-  for (int y = 0; y < GRID_SIZE_2048; y++) {
-    int line[GRID_SIZE_2048];
-    for (int x = 0; x < GRID_SIZE_2048; x++) {
-      line[x] = grid[y][x];
-    }
-    
-    if (mergeLine(line, GRID_SIZE_2048)) {
+
+  for (int i = 0; i < size; i++) {
+    int line[MAX_GRID_2048];
+    for (int j = 0; j < size; j++) line[j] = *cell(dir, i, j);
+
+    if (mergeLine(line, size)) {
       hasMoved = true;
-      for (int x = 0; x < GRID_SIZE_2048; x++) {
-        grid[y][x] = line[x];
-      }
+      for (int j = 0; j < size; j++) *cell(dir, i, j) = line[j];
     }
   }
-  
+
   moved = hasMoved;
 }
 
-void Game2048::moveRight() {
-  bool hasMoved = false;
-  
-  for (int y = 0; y < GRID_SIZE_2048; y++) {
-    int line[GRID_SIZE_2048];
-    for (int x = 0; x < GRID_SIZE_2048; x++) {
-      line[x] = grid[y][GRID_SIZE_2048 - 1 - x];
-    }
-    
-    if (mergeLine(line, GRID_SIZE_2048)) {
-      hasMoved = true;
-      for (int x = 0; x < GRID_SIZE_2048; x++) {
-        grid[y][GRID_SIZE_2048 - 1 - x] = line[x];
-      }
-    }
+// The j-th cell of line i, counted from the wall that direction dir slides to.
+int* Game2048::cell(int dir, int i, int j) {
+  const int last = size - 1;
+  switch (dir) {
+    case 0:  return &grid[i][j];
+    case 1:  return &grid[i][last - j];
+    case 2:  return &grid[j][i];
+    default: return &grid[last - j][i];
   }
-  
-  moved = hasMoved;
 }
 
-void Game2048::moveUp() {
-  bool hasMoved = false;
-  
-  for (int x = 0; x < GRID_SIZE_2048; x++) {
-    int line[GRID_SIZE_2048];
-    for (int y = 0; y < GRID_SIZE_2048; y++) {
-      line[y] = grid[y][x];
-    }
-    
-    if (mergeLine(line, GRID_SIZE_2048)) {
-      hasMoved = true;
-      for (int y = 0; y < GRID_SIZE_2048; y++) {
-        grid[y][x] = line[y];
-      }
-    }
-  }
-  
-  moved = hasMoved;
-}
-
-void Game2048::moveDown() {
-  bool hasMoved = false;
-  
-  for (int x = 0; x < GRID_SIZE_2048; x++) {
-    int line[GRID_SIZE_2048];
-    for (int y = 0; y < GRID_SIZE_2048; y++) {
-      line[y] = grid[GRID_SIZE_2048 - 1 - y][x];
-    }
-    
-    if (mergeLine(line, GRID_SIZE_2048)) {
-      hasMoved = true;
-      for (int y = 0; y < GRID_SIZE_2048; y++) {
-        grid[GRID_SIZE_2048 - 1 - y][x] = line[y];
-      }
-    }
-  }
-  
-  moved = hasMoved;
-}
-
-bool Game2048::mergeLine(int line[], int size) {
-  bool moved = false;
-  
-  // Compress (move all non-zero elements to the left)
+// Compresses the line towards index 0 and merges equal neighbours once each.
+// Returns true if anything changed.
+bool Game2048::mergeLine(int line[], int n) {
+  int out[MAX_GRID_2048] = {0};
   int writePos = 0;
-  for (int i = 0; i < size; i++) {
-    if (line[i] != 0) {
-      if (writePos != i) {
-        line[writePos] = line[i];
-        line[i] = 0;
-        moved = true;
-      }
-      writePos++;
+  bool canMerge = false;   // out[writePos - 1] has not been merged yet
+
+  for (int i = 0; i < n; i++) {
+    int v = line[i];
+    if (v == 0) continue;
+
+    if (canMerge && out[writePos - 1] == v) {
+      out[writePos - 1] = v * 2;
+      score += v * 2;
+      if (v * 2 == 2048) hasWon = true;
+      canMerge = false;
+    } else {
+      out[writePos++] = v;
+      canMerge = true;
     }
   }
-  
-  // Merge
-  for (int i = 0; i < size - 1; i++) {
-    if (line[i] != 0 && line[i] == line[i + 1]) {
-      line[i] *= 2;
-      line[i + 1] = 0;
-      score += line[i];
-      moved = true;
-      
-      // Check for win condition
-      if (line[i] == 2048) {
-        hasWon = true;
-      }
-    }
+
+  bool changed = false;
+  for (int i = 0; i < n; i++) {
+    if (line[i] != out[i]) changed = true;
+    line[i] = out[i];
   }
-  
-  // Compress again after merging
-  writePos = 0;
-  for (int i = 0; i < size; i++) {
-    if (line[i] != 0) {
-      if (writePos != i) {
-        line[writePos] = line[i];
-        line[i] = 0;
-        moved = true;
-      }
-      writePos++;
-    }
-  }
-  
-  return moved;
+  return changed;
 }
 
 void Game2048::drawTile(int x, int y, int value) {
-  int screenX = BOARD_OFFSET_X + x * (TILE_SIZE + TILE_MARGIN);
-  int screenY = BOARD_OFFSET_Y + y * (TILE_SIZE + TILE_MARGIN);
+  int t = tileSize(size), m = tileMargin(size);
+  int screenX = boardX(size) + x * (t + m);
+  int screenY = y * (t + m);
   
   // Draw tile background
   if (value == 0) {
-    display.drawRect(screenX, screenY, TILE_SIZE, TILE_SIZE, SSD1306_WHITE);
-  } else {
-    display.fillRect(screenX, screenY, TILE_SIZE, TILE_SIZE, SSD1306_WHITE);
-    
-    // Draw value
-    display.setTextSize(1);
-    display.setTextColor(SSD1306_BLACK);
-    
-    // Center the text
-    int textWidth = getTileWidth(value);
-    int textX = screenX + (TILE_SIZE - textWidth) / 2;
-    int textY = screenY + (TILE_SIZE - 8) / 2;
-    
-    display.setCursor(textX, textY);
-    if (value >= 1000) {
-      display.print(value / 1000);
-      display.print(F("k"));
-    } else {
-      display.print(value);
-    }
+    display.drawRect(screenX, screenY, t, t, SSD1306_WHITE);
+    return;
   }
-}
 
-int Game2048::getTileWidth(int value) {
-  if (value < 10) return 6;
-  if (value < 100) return 12;
-  if (value < 1000) return 18;
-  return 12; // For "1k", "2k", etc.
+  display.fillRect(screenX, screenY, t, t, SSD1306_WHITE);
+  display.setTextSize(1);
+  display.setTextColor(SSD1306_BLACK);
+
+  // 4x4 shows the value ("1k" from 1000); 5x5 shows the power of two so it fits
+  char text[6];
+  if (size == 5) {
+    int power = 0;
+    for (int v = value; v > 1; v >>= 1) power++;
+    snprintf(text, sizeof(text), "%d", power);
+  } else if (value >= 1000) {
+    snprintf(text, sizeof(text), "%dk", value / 1000);
+  } else {
+    snprintf(text, sizeof(text), "%d", value);
+  }
+
+  int textWidth = strlen(text) * 6 - 1;
+  display.setCursor(screenX + (t - textWidth) / 2, screenY + (t - 7) / 2);
+  display.print(text);
 }
