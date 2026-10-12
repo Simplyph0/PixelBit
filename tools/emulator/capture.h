@@ -94,6 +94,9 @@ struct GifRecorder {
   void start() { frames.clear(); times.clear(); active = true; lastAt = 0; }
   void add(const Frame fb, unsigned long nowMs) {
     if (!active) return;
+    // About 14 frames a second is plenty for a GIF and keeps the file small: a
+    // frame that comes sooner is dropped and the previous one is held longer
+    if (!frames.empty() && nowMs - lastAt < 65) return;
     if (!frames.empty()) times.back() = nowMs - lastAt;
     lastAt = nowMs;
     frames.emplace_back(128 * 64);

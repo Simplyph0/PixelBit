@@ -4,6 +4,8 @@ PixelBit is a handheld arcade you can fit in your pocket. It's an ESP8266, a tin
 
 ![PixelBit](images/finished_console.jpg)
 
+<p align="center"><img src="images/screens/menu.gif" width="420" alt="Scrolling through the PixelBit game menu"><br><sub>The menu on the OLED (screen capture from the PC emulator)</sub></p>
+
 > ## Credit
 > **This is a fork of [Arduino-Game-System](https://github.com/innif/Arduino-Game-System) by Finn Harms ([innif](https://github.com/innif)).** All credit for the hardware, the case, the build instructions and the first eight games goes to them. The case and the original project are on [MakerWorld](https://makerworld.com/en/models/1526306-tiny-retro-arcade-8-games). Go star the [original repo](https://github.com/innif/Arduino-Game-System) and thank them.
 >
@@ -28,6 +30,33 @@ PixelBit is a handheld arcade you can fit in your pocket. It's an ESP8266, a tin
 - [License](#license)
 
 ## Games
+
+<table>
+<tr>
+<td align="center"><img src="images/screens/snake.png" width="250" alt="Snake"><br><sub>Snake</sub></td>
+<td align="center"><img src="images/screens/tetris.png" width="250" alt="Tetris"><br><sub>Tetris</sub></td>
+<td align="center"><img src="images/screens/flappy.png" width="250" alt="Flappy Bird"><br><sub>Flappy Bird</sub></td>
+</tr>
+<tr>
+<td align="center"><img src="images/screens/2048.png" width="250" alt="2048"><br><sub>2048</sub></td>
+<td align="center"><img src="images/screens/breakout.png" width="250" alt="Breakout"><br><sub>Breakout</sub></td>
+<td align="center"><img src="images/screens/frogger.png" width="250" alt="Frogger"><br><sub>Frogger</sub></td>
+</tr>
+<tr>
+<td align="center"><img src="images/screens/helicopter.png" width="250" alt="Helicopter"><br><sub>Helicopter</sub></td>
+<td align="center"><img src="images/screens/pacman.png" width="250" alt="Pac-Man"><br><sub>Pac-Man</sub></td>
+<td align="center"><img src="images/screens/pong.png" width="250" alt="Pong"><br><sub>Pong (with a power-up)</sub></td>
+</tr>
+<tr>
+<td align="center"><img src="images/screens/invaders.png" width="250" alt="Invaders"><br><sub>Invaders</sub></td>
+<td align="center"><img src="images/screens/dino.png" width="250" alt="Dino"><br><sub>Dino</sub></td>
+<td align="center"><img src="images/screens/tictactoe.png" width="250" alt="Tic-Tac-Toe"><br><sub>Tic-Tac-Toe</sub></td>
+</tr>
+<tr>
+<td align="center"><img src="images/screens/rps.png" width="250" alt="Rock Paper Scissors"><br><sub>Rock Paper Scissors</sub></td>
+<td align="center"><img src="images/screens/connect4.png" width="250" alt="Connect 4"><br><sub>Connect 4</sub></td>
+</tr>
+</table>
 
 | Game | What it has |
 |---|---|
@@ -56,6 +85,14 @@ PixelBit is a handheld arcade you can fit in your pocket. It's an ESP8266, a tin
 - Little screen effects like score pops and shutter wipes
 - A manufacturing test mode for checking new units, see [Manufacturing test mode](#manufacturing-test-mode)
 - A PC emulator and automated tests, see [tools/](tools/README.md)
+
+<table>
+<tr>
+<td align="center"><img src="images/screens/menu-vset.png" width="250" alt="The menu with the vSET hint"><br><sub><code>vSET</code> under the game means it has settings</sub></td>
+<td align="center"><img src="images/screens/settings-pong-mode.png" width="250" alt="Pong mode setting"><br><sub>One settings screen per option</sub></td>
+<td align="center"><img src="images/screens/settings-pong-powerups.png" width="250" alt="Pong power-ups setting"><br><sub>Your choices are remembered</sub></td>
+</tr>
+</table>
 
 ## Build it
 
@@ -102,6 +139,16 @@ Heads up: `LINK_SECRET` is sitting in the source, so anyone with your firmware c
 ### First boot
 A new console plays a welcome animation ("Welcome to your new PixelBit!") and then a short tour. The tour waits for you to actually press each button.
 
+<p align="center"><img src="images/screens/greeting.gif" width="420" alt="The welcome animation"><br><sub>The welcome animation</sub></p>
+
+<table>
+<tr>
+<td align="center"><img src="images/screens/tour-welcome.png" width="250" alt="Tour welcome page"><br><sub>Tour start</sub></td>
+<td align="center"><img src="images/screens/tour-menu.png" width="250" alt="A tour page asking to press right"><br><sub>Pages wait for you to press the button</sub></td>
+<td align="center"><img src="images/screens/tour-leaving.png" width="250" alt="The hold up and down page"><br><sub>You try it for real</sub></td>
+</tr>
+</table>
+
 It only counts as done when you acknowledge it. That means you either finish the tour, or skip it (hold any button for 1.5 seconds) and close the "TOUR SKIPPED" message with **Up**. If the power gets cut before that, it plays again next boot. Want to see it again later? Hold **Down** on the menu for a second.
 
 ### Menu
@@ -147,6 +194,17 @@ Pong, Tic-Tac-Toe, Rock Paper Scissors and Connect 4 work between two consoles. 
 3. The joiner sees nearby hosts by their 5 character ID. Pick one with **Left/Right** and press **Up**.
 4. The host sees the request. **Up** accepts it, **Down** denies it.
 
+<table>
+<tr>
+<td align="center"><img src="images/screens/lobby-role.png" width="300" alt="Host or join choice"><br><sub>Host or join</sub></td>
+<td align="center"><img src="images/screens/lobby-hosting.png" width="300" alt="The host waiting screen"><br><sub>The host waits and shows its ID</sub></td>
+</tr>
+<tr>
+<td align="center"><img src="images/screens/lobby-find.png" width="300" alt="The joiner choosing a host"><br><sub>The joiner picks a host by ID</sub></td>
+<td align="center"><img src="images/screens/lobby-request.png" width="300" alt="The host seeing a join request"><br><sub>The host accepts or denies</sub></td>
+</tr>
+</table>
+
 Both consoles need the same firmware version and the same `LINK_SECRET`. Each console's ID comes from its chip, and the link uses the full 48 bit hardware address underneath, so two consoles can't get mixed up.
 
 ## Saved data
@@ -169,6 +227,17 @@ Test mode never marks the tour as acknowledged, so a tested unit still greets it
 
 ### The tests
 Move with **Left/Right** and run a test with **Up**. The list shows OK, FAIL, or -- for each one.
+
+<table>
+<tr>
+<td align="center"><img src="images/screens/test-list.png" width="300" alt="Test mode list"><br><sub>The test list</sub></td>
+<td align="center"><img src="images/screens/test-buttons.png" width="300" alt="Button test screen"><br><sub>Button test</sub></td>
+</tr>
+<tr>
+<td align="center"><img src="images/screens/test-display.png" width="300" alt="Display test pattern"><br><sub>Display test pattern</sub></td>
+<td align="center"><img src="images/screens/test-system.png" width="300" alt="System info screen"><br><sub>System info</sub></td>
+</tr>
+</table>
 
 | Test | What it does |
 |---|---|
@@ -205,6 +274,8 @@ The emulator has the same mode (run it without `--no-tutorial`). There the stora
 3. Add it to the table in `gamemanager.cpp` and give it an icon in `menuicons.cpp`.
 
 ### Try it without the hardware
+All the screenshots in this README came from the emulator, so you can make the same ones yourself.
+
 ```
 cd tools/emulator && make && ./emulator
 ```
