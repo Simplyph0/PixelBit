@@ -21,3 +21,4 @@ __pycache__/
 tools/tests/update_test
 tools/tests/update_test_new
 tools/tests/update_test_old
+build/
