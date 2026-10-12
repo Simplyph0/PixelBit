@@ -10,7 +10,7 @@ enum TutorialResult : uint8_t { TUT_RUNNING, TUT_FINISHED, TUT_SKIPPED };
 
 class Tutorial {
 public:
-  void begin(bool learnLayout = false);   // learnLayout: first boot, the first UP press also tells the button layout
+  void begin();
   TutorialResult update();
   void draw();   // does not present; the manager does
 
@@ -18,7 +18,6 @@ private:
   uint8_t page;
   unsigned long anyHeldSince;    // some button held since then (0 = none)
   unsigned long comboSince;      // UP + DOWN held together since then
-  bool learnLayout;
   bool armed;                    // all buttons were released once: only then does holding skip
 
   void go(int to);

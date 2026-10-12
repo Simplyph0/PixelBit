@@ -57,7 +57,6 @@ public:
   void init();
   void startTutorial();
   void acknowledgeTour();       // saves "the first-boot tour was seen"
-  void setButtonLayout(bool flipped);   // saves the layout (test mode > LAYOUT) and uses it at once
   bool checkTestEntry();        // LEFT x3 then hold UP: manufacturing test mode
   void skipTutorialQuietly();   // for the emulator, which has no saved first-boot flag
   void update();

@@ -4,7 +4,6 @@
 #include "gamelink.h"
 #include "highscore.h"
 #include "fwupdate.h"
-#include "gamemanager.h"
 #include <EEPROM.h>
 #include <ESP8266WiFi.h>
 
@@ -16,7 +15,7 @@ static const TestItem ITEM_LIST[] = {
 #if ENABLE_P2P_UPDATE
   {"UPDATE", 6},
 #endif
-  {"LAYOUT", 7}, {"EXIT", 0}
+  {"EXIT", 0}
 };
 static const uint8_t ITEMS = sizeof(ITEM_LIST) / sizeof(ITEM_LIST[0]);
 static const uint8_t VISIBLE_ROWS = 6;
@@ -61,11 +60,6 @@ void TestMode::open(Page p) {
 #if ENABLE_P2P_UPDATE
       fwUpdate.begin();
 #endif
-      break;
-    case P_LAYOUT:
-      layoutArmed = false;   // the press that opened this page has to be let go first
-      layoutPicked = 0;
-      layoutHint = false;
       break;
     case P_RADIO:
       radioStarted = true;
@@ -221,22 +215,6 @@ bool TestMode::update() {
       updateFingerprint();
       if (buttons.downPressed || buttons.upPressed) leavePage();
       break;
-
-    case P_LAYOUT: {
-      // Which GPIO is the button the tester calls UP? UP and DOWN swap pins
-      // when the board is upside down; LEFT and RIGHT do not tell us anything new.
-      int pin = rawPressedPin();
-      if (!layoutArmed) { if (pin < 0) layoutArmed = true; break; }   // wait until every button is let go
-      if (pin < 0) break;
-      layoutArmed = false;                       // one decision per press
-      if (layoutPicked) { leavePage(); break; }  // any press after the result: back
-      int flipped = layoutFromUpPin(pin);
-      if (flipped < 0) { layoutHint = true; break; }
-      gameManager.setButtonLayout(flipped == 1);
-      layoutPicked = flipped ? 2 : 1;
-      result[sel] = 1;
-      break;
-    }
 
     case P_UPDATE:
 #if ENABLE_P2P_UPDATE
@@ -398,21 +376,6 @@ bool TestMode::draw() {
     }
 
     case P_UPDATE:
-      break;
-
-    case P_LAYOUT:
-      line(0, "BUTTON LAYOUT");
-      if (!layoutPicked) {
-        line(14, "Press the button");
-        line(23, "that is UP on this");
-        line(32, "console.");
-        if (layoutHint) line(44, "(that was LEFT/RIGHT)");
-      } else {
-        line(14, layoutPicked == 2 ? "UPSIDE DOWN board" : "NORMAL board");
-        line(23, "Saved. Games and");
-        line(32, "menus now use it.");
-        line(54, "Any button: back");
-      }
       break;
 
     case P_SYSTEM: {

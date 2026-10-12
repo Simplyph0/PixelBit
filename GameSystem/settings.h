@@ -8,8 +8,8 @@
 // scores. Unknown or damaged data falls back to the games' defaults.
 // flags: SETTING_* bits below
 #define SETTING_TUTORIAL_DONE 0x01
-#define SETTING_LAYOUT_SAVED 0x02      // the button layout below has been stored
-#define SETTING_BUTTONS_FLIPPED 0x04   // the console is built upside down
+// 0x02 and 0x04 held a saved button layout in v4.2; the layout now comes from
+// config.h only, so those bits are ignored (and left unused)
 void loadGameOptions(uint8_t values[MAX_GAMES][MAX_GAME_OPTIONS], uint16_t* seen, uint8_t* flags);
 void saveGameOptions(const uint8_t values[MAX_GAMES][MAX_GAME_OPTIONS], uint16_t seen, uint8_t flags);
 

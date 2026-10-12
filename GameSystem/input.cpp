@@ -2,10 +2,8 @@
 
 ButtonState buttons;
 
-// GPIOs of the four buttons on a console built the normal way round. Upside
-// down, UP and DOWN swap pins, and so do LEFT and RIGHT.
-static const int PINS_NORMAL[4] = {12, 13, 2, 14};   // up, down, left, right
-static bool flippedLayout = FLIPPED_BUTTONS;
+// GPIOs of the four buttons, as set in config.h (FLIPPED_BUTTONS picks them)
+static const int PINS[4] = {PIN_BUTTON_UP, PIN_BUTTON_DOWN, PIN_BUTTON_LEFT, PIN_BUTTON_RIGHT};
 
 // A change is only taken once the button has been steady for this long, so a
 // bouncing contact does not count as two presses
@@ -13,28 +11,19 @@ static const unsigned long DEBOUNCE_MS = 25;
 static bool stable[4];
 static unsigned long changedAt[4];
 
-void setButtonsFlipped(bool flipped) { flippedLayout = flipped; }
-bool buttonsFlipped() { return flippedLayout; }
-
 int buttonPin(int button) {
   if (button < 0 || button > 3) return -1;
-  return PINS_NORMAL[flippedLayout ? (button ^ 1) : button];
+  return PINS[button];
 }
 
 int rawPressedPin() {
-  for (int i = 0; i < 4; i++) if (digitalRead(PINS_NORMAL[i]) == LOW) return PINS_NORMAL[i];
-  return -1;
-}
-
-int layoutFromUpPin(int pin) {
-  if (pin == PINS_NORMAL[0]) return 0;
-  if (pin == PINS_NORMAL[1]) return 1;
+  for (int i = 0; i < 4; i++) if (digitalRead(PINS[i]) == LOW) return PINS[i];
   return -1;
 }
 
 void initInput() {
   for (int i = 0; i < 4; i++) {
-    pinMode(PINS_NORMAL[i], INPUT_PULLUP);
+    pinMode(PINS[i], INPUT_PULLUP);
     stable[i] = false;
     changedAt[i] = 0;
   }

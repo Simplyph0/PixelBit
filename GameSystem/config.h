@@ -7,13 +7,24 @@
 #include <Adafruit_SSD1306.h>
 #include <EEPROM.h>
 
-// Button layout for a console that has never been set up. A perfboard turned
-// over (rotated 180 degrees) has every button in the opposite place: UP and DOWN
-// swap, and so do LEFT and RIGHT. The layout is saved on the first boot and can
-// be changed at any time in test mode > LAYOUT, so a firmware update from a
-// console with the other layout keeps this console's buttons right.
-// Pins (normal layout): UP 12, DOWN 13, LEFT 2, RIGHT 14 (see input.cpp).
-#define FLIPPED_BUTTONS 1
+// Button Pins
+// Set FLIPPED_BUTTONS to 1 when the perfboard is turned over (rotated 180
+// degrees): every button is then in the opposite position, so UP and DOWN swap
+// pins and LEFT and RIGHT swap pins. This is fixed when the firmware is built:
+// change it and upload again to switch.
+#define FLIPPED_BUTTONS 0
+
+#if FLIPPED_BUTTONS
+  #define PIN_BUTTON_UP 13
+  #define PIN_BUTTON_DOWN 12
+  #define PIN_BUTTON_LEFT 14
+  #define PIN_BUTTON_RIGHT 2
+#else
+  #define PIN_BUTTON_UP 12
+  #define PIN_BUTTON_DOWN 13
+  #define PIN_BUTTON_LEFT 2
+  #define PIN_BUTTON_RIGHT 14
+#endif
 
 // Display pins. These are tried first; if no display answers there, the two are
 // swapped, so a display wired the other way round still works.
