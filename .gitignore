@@ -18,3 +18,6 @@ __pycache__/
 .DS_Store
 *.swp
 .vscode/
+tools/tests/update_test
+tools/tests/update_test_new
+tools/tests/update_test_old

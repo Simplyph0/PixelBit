@@ -10,6 +10,16 @@ void Lobby::begin(uint8_t gameTag, const char* gameTitle) {
   roleChoice = 0;
   joinIndex = 0;
   phase = PH_ROLE;
+  setWording("HOST GAME", "JOIN GAME", "HOSTING GAME", "Waiting for a player", "FIND GAME", "wants to play");
+}
+
+void Lobby::setWording(const char* hc, const char* jc, const char* ht, const char* hl1, const char* ft, const char* rl) {
+  hostChoice = hc;
+  joinChoice = jc;
+  hostTitle = ht;
+  hostLine1 = hl1;
+  findTitle = ft;
+  requestLine = rl;
 }
 
 void Lobby::end() {
@@ -137,20 +147,20 @@ void Lobby::draw() {
     case PH_ROLE:
       linkOwnId(line + 9);
       memcpy(line, "Your ID: ", 9);
-      drawChoiceScreen(title, roleChoice == 0 ? "HOST GAME" : "JOIN GAME", line,
+      drawChoiceScreen(title, roleChoice == 0 ? hostChoice : joinChoice, line,
                        "UP:OK  DOWN:BACK", true, true);
       break;
 
     case PH_HOST:
       switch (gameLink.state()) {
         case LINK_REQUESTED:
-          drawMessageScreen("JOIN REQUEST", gameLink.peerId(), "wants to play", "", "UP:ACCEPT DOWN:DENY");
+          drawMessageScreen("JOIN REQUEST", gameLink.peerId(), requestLine, "", "UP:ACCEPT DOWN:DENY");
           break;
         case LINK_ACCEPTING:
-          drawMessageScreen("HOSTING GAME", gameLink.peerId(), "Connecting...", "", "DOWN: CANCEL");
+          drawMessageScreen(hostTitle, gameLink.peerId(), "Connecting...", "", "DOWN: CANCEL");
           break;
         default:
-          drawMessageScreen("HOSTING GAME", gameLink.localId(), "Waiting for a player", "Tell them your ID", "DOWN: CANCEL");
+          drawMessageScreen(hostTitle, gameLink.localId(), hostLine1, "Tell them your ID", "DOWN: CANCEL");
           break;
       }
       break;
@@ -160,10 +170,10 @@ void Lobby::draw() {
         case LINK_SCANNING:
           if (gameLink.hostCount() == 0) {
             snprintf(line, sizeof(line), "Your ID: %s", gameLink.localId());
-            drawMessageScreen("FIND GAME", "", "Searching for hosts...", line, "DOWN: BACK");
+            drawMessageScreen(findTitle, "", "Searching...", line, "DOWN: BACK");
           } else {
             snprintf(line, sizeof(line), "%d of %d", joinIndex + 1, gameLink.hostCount());
-            drawChoiceScreen("FIND GAME", gameLink.hostId(joinIndex), line, "UP:JOIN  DOWN:BACK",
+            drawChoiceScreen(findTitle, gameLink.hostId(joinIndex), line, "UP:JOIN  DOWN:BACK",
                              gameLink.hostCount() > 1, gameLink.hostCount() > 1);
           }
           break;

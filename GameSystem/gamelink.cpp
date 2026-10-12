@@ -8,7 +8,7 @@ GameLink gameLink;
 
 static const uint8_t MAGIC = 0xA7;
 enum PacketType : uint8_t {
-  T_BEACON = 1, T_JOIN_REQ = 2, T_JOIN_OK = 3, T_JOIN_DENY = 4, T_CANCEL = 5, T_SESSION = 8
+  T_BEACON = 1, T_JOIN_REQ = 2, T_JOIN_OK = 3, T_JOIN_DENY = 4, T_CANCEL = 5, T_SESSION = 8, T_BULK = 9
 };
 enum SessionKind : uint8_t { K_HELLO = 0, K_DATA = 1, K_BYE = 2 };
 
@@ -31,9 +31,9 @@ static uint8_t BROADCAST[6] = {0xFF, 0xFF, 0xFF, 0xFF, 0xFF, 0xFF};
 struct RxSlot {
   uint8_t mac[6];
   uint8_t len;
-  uint8_t data[64];
+  uint8_t data[216];   // big enough for a bulk packet (2 + 200 + 8 bytes)
 };
-static const uint8_t RX_SLOTS = 8;
+static const uint8_t RX_SLOTS = 12;   // a burst of bulk packets can arrive between two calls to poll()
 static RxSlot rxQueue[RX_SLOTS];
 static volatile uint8_t rxHead = 0, rxTail = 0;
 
@@ -46,7 +46,20 @@ static void onReceive(uint8_t* mac, uint8_t* data, uint8_t len) {
   rxHead = next;
 }
 
-static void onSent(uint8_t*, uint8_t) {}
+// Bulk packets are sent one at a time: the radio tells us when one has left (and
+// whether the other console acknowledged it) through this callback
+static volatile bool bulkInFlight = false;
+static volatile bool bulkFailedFlag = false;
+static unsigned long bulkSentAt = 0;
+
+static void onSent(uint8_t*, uint8_t status) {
+  if (bulkInFlight) {
+    bulkInFlight = false;
+    if (status != 0) bulkFailedFlag = true;
+  }
+}
+
+static void (*bulkHandler)(const uint8_t*, uint8_t) = nullptr;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -99,6 +112,8 @@ void GameLink::setState(LinkState s) {
 bool GameLink::begin(uint8_t gameTag) {
   tag = gameTag;
   rxHead = rxTail = 0;
+  bulkInFlight = false;
+  bulkFailedFlag = false;
 
   WiFi.persistent(false);
   WiFi.mode(WIFI_STA);
@@ -220,6 +235,57 @@ bool GameLink::receive(uint8_t* out, uint8_t& len) {
 
 unsigned long GameLink::msSinceReceive() const { return millis() - lastRx; }
 
+// ---------------------------------------------------------------------------
+// Bulk channel: [magic, T_BULK, payload..., tag]; the tag covers everything
+// before it and uses the session key, so only the paired console can make them
+// ---------------------------------------------------------------------------
+bool GameLink::sendBulk(const uint8_t* data, uint8_t len) {
+  if (linkState != LINK_CONNECTED || len > LINK_BULK_MAX) return false;
+  uint8_t pkt[2 + LINK_BULK_MAX + TAG_LEN];
+  pkt[0] = MAGIC;
+  pkt[1] = T_BULK;
+  memcpy(pkt + 2, data, len);
+  uint8_t mac32[32];
+  hmacSha256(sessionKey, 32, pkt, 2 + len, mac32);
+  memcpy(pkt + 2 + len, mac32, TAG_LEN);
+
+  bulkInFlight = true;
+  bulkSentAt = millis();
+  lastTx = bulkSentAt;
+  rawSend(peerMac, pkt, 2 + len + TAG_LEN);
+  return true;
+}
+
+// A packet counts as gone once the radio reported it, or after a short time if
+// the report never came
+bool GameLink::bulkReady() const {
+  return !bulkInFlight || millis() - bulkSentAt > 40;
+}
+
+bool GameLink::bulkFailed() {
+  if (!bulkFailedFlag) return false;
+  bulkFailedFlag = false;
+  return true;
+}
+
+void GameLink::handleBulk(const uint8_t* mac, const uint8_t* data, uint8_t len) {
+  if (linkState != LINK_CONNECTED && linkState != LINK_ACCEPTING) return;
+  if (!sameBytes(mac, peerMac, 6)) return;
+  if (len < 2 + 1 + TAG_LEN || len > 2 + LINK_BULK_MAX + TAG_LEN) return;
+
+  uint8_t payload = len - 2 - TAG_LEN;
+  uint8_t mac32[32];
+  hmacSha256(sessionKey, 32, data, 2 + payload, mac32);
+  if (!sameBytes(mac32, data + 2 + payload, TAG_LEN)) return;
+
+  lastRx = millis();
+  if (linkState == LINK_ACCEPTING) setState(LINK_CONNECTED);
+
+  if (bulkHandler) bulkHandler(data + 2, payload);
+}
+
+void GameLink::setBulkHandler(void (*handler)(const uint8_t*, uint8_t)) { bulkHandler = handler; }
+
 void GameLink::sendBeacon() {
   uint8_t body[4] = {tag, myIdBytes[0], myIdBytes[1], myIdBytes[2]};
   sendLobby(BROADCAST, T_BEACON, body, 4);
@@ -315,6 +381,7 @@ void GameLink::join(int i) {
 void GameLink::handlePacket(const uint8_t* mac, const uint8_t* data, uint8_t len) {
   if (len < 2 + TAG_LEN || data[0] != MAGIC) return;
   if (data[1] == T_SESSION) handleSession(mac, data, len);
+  else if (data[1] == T_BULK) handleBulk(mac, data, len);
   else handleLobby(mac, data[1], data + 2, len - 2 - TAG_LEN);
 }
 

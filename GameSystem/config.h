@@ -45,8 +45,16 @@
 
 // System identity
 #define OS_NAME "PixelOS"
-#define OS_VERSION "v4.0"
+#ifndef OS_VERSION
+  #define OS_VERSION "v4.1"
+  #define OS_VERSION_NUM 401       // the same version as a number (major * 100 + minor); firmware updates compare this
+#endif
 #define SPLASH_MS 2000
+
+// Firmware updates between two consoles (test mode > UPDATE). 1 = built in. Set to
+// 0 if you never want a console to accept or send firmware over the radio; read
+// the security notes in the README first.
+#define ENABLE_P2P_UPDATE 1
 
 // Game Constants
 #define MAX_GAMES 14

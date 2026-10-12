@@ -1,6 +1,6 @@
 # PixelBit
 
-PixelBit is a handheld arcade you can fit in your pocket. It's an ESP8266, a tiny OLED screen, and four buttons. It has 14 games, and you can link two of them together and play each other. No wifi or router needed. It runs PixelOS v4.0.
+PixelBit is a handheld arcade you can fit in your pocket. It's an ESP8266, a tiny OLED screen, and four buttons. It has 14 games, and you can link two of them together and play each other. No wifi or router needed. It runs PixelOS v4.1.
 
 ![PixelBit](images/finished_console.jpg)
 
@@ -25,6 +25,7 @@ PixelBit is a handheld arcade you can fit in your pocket. It's an ESP8266, a tin
 - [Playing a friend](#playing-a-friend)
 - [Saved data](#saved-data)
 - [Manufacturing test mode](#manufacturing-test-mode)
+- [Console-to-console firmware update](#console-to-console-firmware-update)
 - [For tinkerers](#for-tinkerers)
 - [Troubleshooting](#troubleshooting)
 - [License](#license)
@@ -84,6 +85,7 @@ PixelBit is a handheld arcade you can fit in your pocket. It's an ESP8266, a tin
 - A welcome animation and a short tour on the first boot
 - Little screen effects like score pops and shutter wipes
 - A manufacturing test mode for checking new units, see [Manufacturing test mode](#manufacturing-test-mode)
+- Console-to-console firmware updates over ESP-NOW, no cable or PC needed, see [Console-to-console firmware update](#console-to-console-firmware-update)
 - A PC emulator and automated tests, see [tools/](tools/README.md)
 
 <table>
@@ -245,9 +247,49 @@ Move with **Left/Right** and run a test with **Up**. The list shows OK, FAIL, or
 | BUTTONS | Shows each button live, and a dot stays once a button has been seen. OK when all four have been pressed. Hold **Up + Down** for a second to leave |
 | STORAGE | Writes four bit patterns to a scratch area and reads them back from the EEPROM buffer and from the flash chip itself. FAIL shows the first bad byte. It doesn't touch scores or settings |
 | RADIO | Starts the radio and scans for other consoles in test mode. **Up** switches between scanning and sending beacons, so two units can find each other (one scans, one beacons). OK once another unit has been seen. Shows the unit's MAC and short ID |
-| SYSTEM | Firmware version, ID, chip ID, MAC, real and configured flash size, free memory, uptime, and the last reset reason. If the flash sizes don't match, you probably have the wrong board setting or a fake chip |
+| UPDATE | Send or receive firmware between two consoles, see [Console-to-console firmware update](#console-to-console-firmware-update) |
+| SYSTEM | Firmware version, ID, firmware fingerprint, chip ID, MAC, real and configured flash size, free memory, uptime, and the last reset reason. If the flash sizes don't match, you probably have the wrong board setting or a fake chip |
 
 The emulator has the same mode (run it without `--no-tutorial`). There the storage test only checks the memory buffer, and the radio test needs two emulators running with `--udp 0` and `--udp 1` to find anyone.
+
+## Console-to-console firmware update
+
+One console can copy its own firmware to another one over the air (ESP-NOW), so you can update a unit without a cable or a PC. Open test mode on both consoles (hold **Down** on the menu to replay the tour, then **Left three times** and **hold Up**), pick **UPDATE**, then choose **SEND** on one and **RECEIVE** on the other. They pair the same way as the two-console games.
+
+What happens:
+
+1. The sender reads its own flash and works out a SHA-256 hash of its firmware.
+2. It offers the version, size, and hash to the receiver.
+3. The receiver checks the offer and shows a consent screen. **Up** installs, **Down** denies. Nothing is written until you press Up.
+4. The firmware goes over in 192 byte chunks with acknowledgements, a window of 8 chunks in flight, and resends for anything lost. It takes a few seconds to a minute depending on the radio.
+5. The receiver hashes what it got and only installs it if the hash matches. Then it restarts.
+
+Version rules: a newer version is offered normally. If the version number is the same, the receiver is told "Same version number as this build" and can still install it (handy for a unit that got a bad flash). An older version is refused.
+
+Safety checks: the image has to fit in the free update space, has to start with a real firmware header, and has to match its hash. The receiver keeps its own flash settings (bytes 2 and 3 of the header) in case the two units have different chips. If anything fails, the link drops, or the sender walks away, the update is thrown away and the old firmware keeps running.
+
+### What the hash looks like
+The full SHA-256 is 64 hex characters, for example:
+
+```
+9def956fe2d9921e10120fdaa4c10e0d9ae27e5206b14ab07d68c9b4e1936999
+```
+
+The screens show the first 8 characters as two groups, so that example is **9DEF 956F**. You see it on the sender, on the receiver's consent screen, and on the test mode SYSTEM page (`FW 9DEF 956F 360K`). If both consoles show the same fingerprint, they have the same firmware.
+
+### Security disclaimer
+Read this before you use it. This is a hobby feature, not secure updating.
+
+- The firmware is **not signed**. The hash only proves the file arrived in one piece. It does not prove who made it.
+- The pairing secret (`LINK_SECRET` in `config.h`) is in this public repo, so anyone running this code can pair with your console. Radio packets are authenticated per session, but that is not a defence against someone who knows the secret.
+- The only real gate is the consent screen. Someone nearby who also has test mode open and picks SEND could offer your console a malicious image, and if you press Up on it, you installed it. Only accept from a console you are looking at.
+- The 8 character fingerprint is 32 bits. It is fine for "are these the same build", not for telling a good image from a crafted one. Compare the full hash if you care.
+- A power cut in the middle of the final write can still brick a unit. If that happens, reflash over USB.
+- Receiving can only happen from test mode, which needs the secret button combo, but that is obscurity, not security.
+
+If you don't want the feature, set `ENABLE_P2P_UPDATE` to `0` in `GameSystem/config.h` and rebuild. The UPDATE item and the code are then left out.
+
+In the emulator, add `--firmware file.bin` to load a real image to send, `--update-out file.bin` for where a received image is saved, and `--free-space N` to pretend the update space is smaller.
 
 ## For tinkerers
 

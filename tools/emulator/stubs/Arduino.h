@@ -27,6 +27,8 @@ typedef uint8_t byte;
 
 unsigned long millis();
 void delay(unsigned long ms);
+extern void (*g_yieldHook)();   // the emulated radio delivers packets here, as the real one does while the sketch yields
+inline void yield() { if (g_yieldHook) g_yieldHook(); }
 long random(long max);
 long random(long min, long max);
 void pinMode(int pin, int mode);

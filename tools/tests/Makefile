@@ -34,8 +34,14 @@ vs_test: vs_test.cpp air.cpp $(CORE) $(LINK) $(FW)/pong.cpp $(FW)/tictactoe.cpp 
 settings_test: settings_test.cpp $(CORE) $(FW)/settings.cpp
 	g++ $(CXX_FLAGS) -o $@ settings_test.cpp $(CORE) $(FW)/settings.cpp
 
+# firmware update test: three builds with different version numbers talk to each other
+update_test: update_test.cpp air.cpp $(CORE) $(LINK) $(FW)/fwupdate.cpp
+	g++ $(CXX_FLAGS) -DUSE_AIR -o update_test update_test.cpp air.cpp $(CORE) $(LINK) $(FW)/fwupdate.cpp
+	g++ $(CXX_FLAGS) -DUSE_AIR '-DOS_VERSION="v4.2"' -DOS_VERSION_NUM=402 -o update_test_new update_test.cpp air.cpp $(CORE) $(LINK) $(FW)/fwupdate.cpp
+	g++ $(CXX_FLAGS) -DUSE_AIR '-DOS_VERSION="v4.0"' -DOS_VERSION_NUM=400 -o update_test_old update_test.cpp air.cpp $(CORE) $(LINK) $(FW)/fwupdate.cpp
+
 clean:
-	rm -f logic_test ttt_test rps_test vs_test c4_test settings_test
+	rm -f update_test update_test_new update_test_old logic_test ttt_test rps_test vs_test c4_test settings_test
 
 c4_test: c4_test.cpp air.cpp $(CORE) $(LINK) $(FW)/connect4.cpp
 	g++ $(CXX_FLAGS) -DUSE_AIR -o $@ c4_test.cpp air.cpp $(CORE) $(LINK) $(FW)/connect4.cpp

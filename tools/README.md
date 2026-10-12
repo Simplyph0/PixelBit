@@ -19,7 +19,7 @@ Needs the Adafruit GFX library (installed by the Arduino IDE). SDL2 is optional:
 | H | toggle the pixel grid (window only) |
 | Q / Esc | quit |
 
-Options: `--eeprom file` (keep scores and settings in a file between runs, so you can test saving and the first-boot greeting), `--no-tutorial` (skip the first-boot tour, which otherwise shows at every emulator start because nothing is saved), `--fast` (skip the delay that imitates the real display's refresh), `--speed N` (run N times faster than real time), `--seed N` (fixed random seed), `--headless` (no screen, for scripts), `--replay file`.
+Options: `--eeprom file` (keep scores and settings in a file between runs, so you can test saving and the first-boot greeting), `--no-tutorial` (skip the first-boot tour, which otherwise shows at every emulator start because nothing is saved), `--fast` (skip the delay that imitates the real display's refresh), `--speed N` (run N times faster than real time), `--seed N` (fixed random seed), `--headless` (no screen, for scripts), `--replay file`, and for the firmware update: `--firmware file.bin` (the image this emulator sends), `--update-out file.bin` (where a received image is saved) and `--free-space N` (pretend the update space is N bytes).
 
 A replay file is plain text, times in milliseconds since the emulator started (the splash screen takes the first two seconds):
 
@@ -28,6 +28,8 @@ A replay file is plain text, times in milliseconds since the emulator started (t
     2730 0        # release
     3500 shot menu   # save shots/menu.png
     9000 quit
+
+`make update_test` followed by `python3 update_check.py` in `tools/tests` runs two simulated consoles through the firmware update (newer, same, older, denied, bad hash, no space, sender vanishing, lossy radio) and checks what gets installed.
 
 Run `make test` in `tools/tests` to check the game rules, the AIs, the two-console games and that scores, settings and the first-boot flag are really saved and survive a restart.
 

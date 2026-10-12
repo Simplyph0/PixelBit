@@ -16,6 +16,7 @@
 #include "EEPROM.h"
 #include "ESP8266WiFi.h"
 #include "espnow.h"
+#include "Updater.h"
 #include "Adafruit_SSD1306.h"
 #include "config.h"
 #include "display.h"
@@ -109,6 +110,59 @@ void emulatorEepromLoad(uint8_t* mem, size_t size) {
 void emulatorEepromSave(const uint8_t* mem, size_t size) {
   if (g_eepromPath.empty()) return;
   if (FILE* f = fopen(g_eepromPath.c_str(), "wb")) { fwrite(mem, 1, size, f); fclose(f); }
+}
+
+// ---- the pretend firmware image and the updater (test mode > UPDATE) ----
+static std::vector<uint8_t> g_flashImage;      // what this console "has installed": read for sending
+static std::string g_updateOutPath = "received-firmware.bin";
+static size_t g_freeSketchSpace = 1019 * 1024;
+
+static void loadFlashImage(const char* path) {
+  if (path) {
+    if (FILE* f = fopen(path, "rb")) {
+      uint8_t buf[4096]; size_t n;
+      while ((n = fread(buf, 1, sizeof buf, f)) > 0) g_flashImage.insert(g_flashImage.end(), buf, buf + n);
+      fclose(f);
+    }
+  }
+  if (g_flashImage.empty()) {
+    // a made-up image: the ESP8266 header (magic 0xE9, segments, flash mode, size and speed) then noise
+    g_flashImage.resize(360 * 1024);
+    uint32_t x = 2463534242u ^ (uint32_t)g_mac[5] * 2654435761u;
+    for (auto& b : g_flashImage) { x ^= x << 13; x ^= x >> 17; x ^= x << 5; b = x; }
+    g_flashImage[0] = 0xE9; g_flashImage[1] = 4; g_flashImage[2] = 0x02; g_flashImage[3] = 0x40;
+  }
+}
+uint32_t EspClass::getSketchSize() { return g_flashImage.size(); }
+uint32_t EspClass::getFreeSketchSpace() { return g_freeSketchSpace; }
+bool EspClass::flashRead(uint32_t address, uint8_t* data, size_t size) {
+  if (address + size > g_flashImage.size()) return false;
+  memcpy(data, g_flashImage.data() + address, size);
+  return true;
+}
+
+UpdaterClass Update;
+static FILE* g_updateFile = nullptr;
+bool UpdaterClass::begin(size_t size, int, int, uint8_t) {
+  if (open || size == 0 || size > g_freeSketchSpace) { failed = true; return false; }
+  g_updateFile = fopen((g_updateOutPath + ".partial").c_str(), "wb");
+  if (!g_updateFile) { failed = true; return false; }
+  total = size; written = 0; open = true; failed = false;
+  return true;
+}
+size_t UpdaterClass::write(uint8_t* data, size_t len) {
+  if (!open || written + len > total) { failed = true; return 0; }
+  fwrite(data, 1, len, g_updateFile);
+  written += len;
+  return len;
+}
+bool UpdaterClass::end(bool evenIfRemaining) {
+  if (!open) return false;
+  fclose(g_updateFile); g_updateFile = nullptr; open = false;
+  if (written != total && !evenIfRemaining) { failed = true; remove((g_updateOutPath + ".partial").c_str()); return false; }
+  if (written != total) { remove((g_updateOutPath + ".partial").c_str()); return false; }
+  rename((g_updateOutPath + ".partial").c_str(), g_updateOutPath.c_str());   // "installed"
+  return true;
 }
 
 static std::string g_status = "";
@@ -520,7 +574,8 @@ int esp_now_deinit() { return 0; }
 int esp_now_set_self_role(u8) { return 0; }
 int esp_now_register_recv_cb(esp_now_recv_cb_t cb) { g_recvCb = cb; return 0; }
 int esp_now_unregister_recv_cb() { g_recvCb = nullptr; return 0; }
-int esp_now_register_send_cb(esp_now_send_cb_t) { return 0; }
+static esp_now_send_cb_t g_sendCb = nullptr;
+int esp_now_register_send_cb(esp_now_send_cb_t cb) { g_sendCb = cb; return 0; }
 int esp_now_add_peer(u8*, u8, u8, u8*, u8) { return 0; }
 
 int esp_now_send(u8* da, u8* data, int len) {
@@ -537,17 +592,22 @@ int esp_now_send(u8* da, u8* data, int len) {
     memcpy(buf + 6, data, len);
     udpEmit(g_udpPort + (1 - g_udpIndex), buf, 6 + len);
   }
+  if (g_sendCb) g_sendCb(da, 0);   // the real radio reports through this callback
   return 0;
 }
 
 // ---------------------------------------------------------------------------
 // main: the same sequence as GameSystem.ino
 // ---------------------------------------------------------------------------
+void (*g_yieldHook)() = nullptr;
+
 int main(int argc, char** argv) {
+  g_yieldHook = airPump;
   clock_gettime(CLOCK_MONOTONIC, &g_t0);
   g_seed = (unsigned)(time(nullptr) ^ getpid());
   const char* bridge = nullptr;
   const char* replay = nullptr;
+  const char* firmwarePath = nullptr;
   int udp = -1;
   bool wantSeed = false;
   unsigned seedArg = 0;
@@ -561,13 +621,16 @@ int main(int argc, char** argv) {
     else if (!strcmp(argv[i], "--seed") && i + 1 < argc) { seedArg = atoi(argv[++i]); wantSeed = true; }
     else if (!strcmp(argv[i], "--replay") && i + 1 < argc) replay = argv[++i];
     else if (!strcmp(argv[i], "--eeprom") && i + 1 < argc) g_eepromPath = argv[++i];
+    else if (!strcmp(argv[i], "--firmware") && i + 1 < argc) firmwarePath = argv[++i];
+    else if (!strcmp(argv[i], "--update-out") && i + 1 < argc) g_updateOutPath = argv[++i];
+    else if (!strcmp(argv[i], "--free-space") && i + 1 < argc) g_freeSketchSpace = (size_t)atol(argv[++i]);
     else if (!strcmp(argv[i], "--no-tutorial")) skipTutorial = true;
     else if (!strcmp(argv[i], "--tty")) forceTty = true;
     else if (!strcmp(argv[i], "--sdl")) forceSdl = true;
     else if (!strcmp(argv[i], "--headless")) headless = true;
     else {
       fprintf(stderr, "usage: emulator [--sdl | --tty | --headless] [--bridge /dev/ttyACM0 | --udp 0|1]\n"
-                      "                [--fast] [--speed N] [--seed N] [--replay file] [--eeprom file] [--no-tutorial]\n");
+                      "                [--fast] [--speed N] [--seed N] [--replay file] [--eeprom file] [--firmware file] [--update-out file] [--no-tutorial]\n");
       return 1;
     }
   }
@@ -606,6 +669,7 @@ int main(int argc, char** argv) {
   }
   g_status = status;
 
+  loadFlashImage(firmwarePath);   // after the radio has set the MAC, which seeds the made-up image
   if (g_frontend == FE_TTY) setupTerminal();
 #ifdef USE_SDL
   if (g_frontend == FE_SDL && !setupSdl()) { fprintf(stderr, "no SDL display; use --tty or --headless\n"); return 1; }

@@ -3,12 +3,20 @@
 #include "input.h"
 #include "gamelink.h"
 #include "highscore.h"
+#include "fwupdate.h"
 #include <EEPROM.h>
 #include <ESP8266WiFi.h>
 
 TestMode testMode;
 
+#if ENABLE_P2P_UPDATE
+static const uint8_t ITEMS = 7;
+static const char* const NAMES[7] = {"DISPLAY", "BUTTONS", "STORAGE", "RADIO", "SYSTEM", "UPDATE", "EXIT"};
+#else
+static const uint8_t ITEMS = 6;
 static const char* const NAMES[6] = {"DISPLAY", "BUTTONS", "STORAGE", "RADIO", "SYSTEM", "EXIT"};
+#endif
+static const uint8_t VISIBLE_ROWS = 6;
 static const uint8_t PATTERNS = 8;
 
 // Scratch area for the storage test, well away from the scores (0..) and the settings (128..)
@@ -41,6 +49,16 @@ void TestMode::open(Page p) {
     case P_STORAGE:
       runStorageTest();
       break;
+    case P_SYSTEM:
+      fwHasher.begin();
+      fwPos = 0;
+      fwDone = false;
+      break;
+    case P_UPDATE:
+#if ENABLE_P2P_UPDATE
+      fwUpdate.begin();
+#endif
+      break;
     case P_RADIO:
       radioStarted = true;
       radioOk = gameLink.begin(250);   // game tag 250: the test beacons
@@ -59,6 +77,9 @@ void TestMode::leavePage() {
     radioStarted = false;
   }
   if (page == P_DISPLAY) display.invertDisplay(false);
+#if ENABLE_P2P_UPDATE
+  if (page == P_UPDATE) fwUpdate.stop();
+#endif
   page = P_LIST;
 }
 
@@ -141,10 +162,10 @@ bool TestMode::update() {
 
   switch (page) {
     case P_LIST:
-      if (buttons.rightPressed || buttons.downPressed) sel = (sel + 1) % 6;
-      else if (buttons.leftPressed) sel = (sel + 5) % 6;
+      if (buttons.rightPressed || buttons.downPressed) sel = (sel + 1) % ITEMS;
+      else if (buttons.leftPressed) sel = (sel + ITEMS - 1) % ITEMS;
       else if (buttons.upPressed) {
-        if (sel == 5) return true;
+        if (sel == ITEMS - 1) return true;   // EXIT is always last
         open((Page)(sel + 1));
         if (sel == 4) result[4] = 1;
       }
@@ -188,10 +209,42 @@ bool TestMode::update() {
       break;
 
     case P_SYSTEM:
+      updateFingerprint();
       if (buttons.downPressed || buttons.upPressed) leavePage();
+      break;
+
+    case P_UPDATE:
+#if ENABLE_P2P_UPDATE
+      if (fwUpdate.update()) {
+        result[5] = 1;
+        page = P_LIST;    // fwUpdate.stop() has already run
+      }
+#else
+      leavePage();
+#endif
       break;
   }
   return false;
+}
+
+// SHA-256 of the running firmware, a little each frame; the first 8 hex digits
+// are shown so two consoles can be compared (and match what an update offers)
+void TestMode::updateFingerprint() {
+  if (fwDone) return;
+  uint32_t size = ESP.getSketchSize();
+  uint8_t buf[256];
+  for (int i = 0; i < 16 && fwPos < size; i++) {
+    uint32_t n = size - fwPos < sizeof(buf) ? size - fwPos : sizeof(buf);
+    ESP.flashRead(fwPos, buf, n);
+    fwHasher.update(buf, n);
+    fwPos += n;
+  }
+  if (fwPos >= size) {
+    uint8_t sha[32];
+    fwHasher.finish(sha);
+    FirmwareUpdate::fingerprint(sha, fwText);
+    fwDone = true;
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -202,7 +255,12 @@ static void line(int y, const char* text) {
   display.print(text);
 }
 
-void TestMode::draw() {
+bool TestMode::draw() {
+  if (page == P_UPDATE) {
+#if ENABLE_P2P_UPDATE
+    return fwUpdate.draw();
+#endif
+  }
   clearDisplay();
   display.setTextSize(1);
   display.setTextColor(SSD1306_WHITE);
@@ -213,14 +271,16 @@ void TestMode::draw() {
       line(0, "TEST MODE");
       display.setCursor(SCREEN_WIDTH - 6 * 9, 0);
       display.print(F("NOT SAVED"));
-      for (int i = 0; i < 6; i++) {
-        int y = 10 + i * 9;
+      int first = sel >= VISIBLE_ROWS ? sel - VISIBLE_ROWS + 1 : 0;   // scroll to keep the selection in view
+      for (int row = 0; row < VISIBLE_ROWS && first + row < ITEMS; row++) {
+        int i = first + row;
+        int y = 10 + row * 9;
         bool on = i == sel;
         if (on) display.fillRect(0, y - 1, SCREEN_WIDTH, 9, SSD1306_WHITE);
         display.setTextColor(on ? SSD1306_BLACK : SSD1306_WHITE);
         display.setCursor(4, y);
         display.print(NAMES[i]);
-        if (i < 5) {
+        if (i < ITEMS - 1) {
           const char* r = result[i] == 1 ? "OK" : (result[i] == 2 ? "FAIL" : "--");
           display.setCursor(SCREEN_WIDTH - 6 * strlen(r) - 4, y);
           display.print(r);
@@ -312,6 +372,9 @@ void TestMode::draw() {
       break;
     }
 
+    case P_UPDATE:
+      break;
+
     case P_SYSTEM: {
       uint8_t mac[6];
       WiFi.macAddress(mac);
@@ -329,8 +392,11 @@ void TestMode::draw() {
       snprintf(buf, sizeof(buf), "RST %s", ESP.getResetReason().c_str());
       buf[21] = 0;
       line(45, buf);
-      line(55, "any button: back");
+      if (fwDone) snprintf(buf, sizeof(buf), "FW %s %uK", fwText, (unsigned)((ESP.getSketchSize() + 1023) / 1024));
+      else snprintf(buf, sizeof(buf), "FW ID computing %d%%", (int)(fwPos * 100UL / (ESP.getSketchSize() ? ESP.getSketchSize() : 1)));
+      line(54, buf);
       break;
     }
   }
+  return true;
 }

@@ -23,6 +23,9 @@ enum LobbyResult : uint8_t {
 class Lobby {
 public:
   void begin(uint8_t gameTag, const char* gameTitle);
+  // Optional wording for the screens (defaults suit two-player games)
+  void setWording(const char* hostChoice, const char* joinChoice, const char* hostTitle,
+                  const char* hostLine1, const char* findTitle, const char* requestLine);
   LobbyResult update();
   void draw();   // does not present; the manager does
   // Shows a message (for example a lost connection); update() returns
@@ -38,6 +41,12 @@ private:
   uint8_t roleChoice = 0;   // 0 = host, 1 = join
   int joinIndex = 0;
   bool radioOn = false;
+  const char* hostChoice = "HOST GAME";
+  const char* joinChoice = "JOIN GAME";
+  const char* hostTitle = "HOSTING GAME";
+  const char* hostLine1 = "Waiting for a player";
+  const char* findTitle = "FIND GAME";
+  const char* requestLine = "wants to play";
   bool noticeRescan = false;   // after the notice: look for hosts again (else leave)
   const char* noticeTitle = "";
   const char* noticeLine1 = "";

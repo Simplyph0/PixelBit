@@ -139,8 +139,7 @@ void GameManager::update() {
       if (testMode.update()) {
         ESP.restart();   // back to a clean boot: the unit still greets its owner
       } else {
-        testMode.draw();
-        updateDisplay();
+        if (testMode.draw()) updateDisplay();
       }
       break;
 

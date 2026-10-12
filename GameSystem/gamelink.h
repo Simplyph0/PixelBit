@@ -21,6 +21,7 @@
 
 #define LINK_ID_LEN 5            // characters, without the terminating 0
 #define LINK_MAX_PAYLOAD 24      // bytes per data packet
+#define LINK_BULK_MAX 200        // bytes per bulk packet (authenticated, not encrypted)
 #define LINK_MAX_HOSTS 4
 
 enum LinkState : uint8_t {
@@ -71,6 +72,17 @@ public:
   bool receive(uint8_t* out, uint8_t& len);
   unsigned long msSinceReceive() const;
 
+  // Bulk packets carry up to LINK_BULK_MAX bytes and are meant for data that is
+  // not secret, such as firmware: they are authenticated with the session key
+  // but not encrypted, and they may arrive duplicated or out of order (the
+  // sender keeps track). sendBulk() paces itself: wait for bulkReady() before
+  // the next one, and check bulkFailed() to learn the last one was not acknowledged.
+  bool sendBulk(const uint8_t* data, uint8_t len);
+  bool bulkReady() const;
+  bool bulkFailed();           // true once after a bulk packet the other console did not acknowledge
+  // Called from poll() for every valid bulk packet, in arrival order
+  void setBulkHandler(void (*handler)(const uint8_t* data, uint8_t len));
+
 private:
   struct HostEntry {
     uint8_t mac[6];
@@ -108,6 +120,7 @@ private:
 
   void setState(LinkState s);
   void handlePacket(const uint8_t* mac, const uint8_t* data, uint8_t len);
+  void handleBulk(const uint8_t* mac, const uint8_t* data, uint8_t len);
   void handleLobby(const uint8_t* mac, uint8_t type, const uint8_t* body, uint8_t n);
   void handleSession(const uint8_t* mac, const uint8_t* data, uint8_t len);
   void sendLobby(const uint8_t* mac, uint8_t type, const uint8_t* body, uint8_t n);
