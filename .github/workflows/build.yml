@@ -42,10 +42,28 @@ jobs:
             build/PixelBit-*.bin
             build/SHA256SUMS.txt
 
-      - name: Attach to the release (tags only)
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: Work out the release tag
+        if: github.event_name == 'push'
+        id: rel
+        run: |
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then
+            echo "tag=$GITHUB_REF_NAME" >> "$GITHUB_OUTPUT"
+            echo "pre=false" >> "$GITHUB_OUTPUT"
+          else
+            ver=$(grep -oP '#define OS_VERSION "\K[^"]+' GameSystem/config.h | head -1)
+            echo "tag=${ver}-build.${GITHUB_RUN_NUMBER}" >> "$GITHUB_OUTPUT"
+            echo "pre=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Publish release with changelog
+        if: github.event_name == 'push'
         uses: softprops/action-gh-release@v2
         with:
+          tag_name: ${{ steps.rel.outputs.tag }}
+          target_commitish: ${{ github.sha }}
+          name: PixelBit ${{ steps.rel.outputs.tag }}
+          prerelease: ${{ steps.rel.outputs.pre }}
+          generate_release_notes: true
           files: |
             build/PixelBit-*.bin
             build/SHA256SUMS.txt
