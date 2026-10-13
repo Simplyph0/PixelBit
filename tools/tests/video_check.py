@@ -60,21 +60,23 @@ os.makedirs(work)
 fsdir = os.path.join(work, 'fs')
 replay = os.path.join(work, 'replay')
 with open(replay, 'w') as f:
+    # Buttons are held 300 ms and the clock runs only 4x, so a slow machine (a CI
+    # runner) cannot have a press and its release fall inside one frame
     f.write('seed 1\n'
-            '600 4\n700 0\n'            # LEFT from the first game: the last one, VIDEOS
-            '1500 shot menu\n'
-            '1800 1\n1900 0\n'          # UP: open it
-            '2600 shot list\n'
-            '2900 1\n3000 0\n'          # UP: play the first clip
-            '3700 shot play1\n'
-            '4700 shot play2\n'
-            '4800 2\n4900 0\n'          # DOWN: back to the list
-            '5500 shot list2\n'
-            '5600 2\n5700 0\n'          # DOWN: leave the player
-            '6400 shot menu2\n'
-            '6900 quit\n')
+            '600 4\n900 0\n'            # LEFT from the first game: the last one, VIDEOS
+            '1800 shot menu\n'
+            '2100 1\n2400 0\n'          # UP: open it
+            '3200 shot list\n'
+            '3500 1\n3800 0\n'          # UP: play the first clip
+            '4500 shot play1\n'
+            '5500 shot play2\n'
+            '5600 2\n5900 0\n'          # DOWN: back to the list
+            '6600 shot list2\n'
+            '6700 2\n7000 0\n'          # DOWN: leave the player
+            '7700 shot menu2\n'
+            '8200 quit\n')
 env = dict(os.environ, PB_FS=fsdir)
-r = run([emulator, '--headless', '--fast', '--speed', '8', '--no-tutorial', '--replay', replay], cwd=work, env=env)
+r = run([emulator, '--headless', '--fast', '--speed', '4', '--no-tutorial', '--replay', replay], cwd=work, env=env)
 check(r.returncode == 0, 'the emulator ran the script')
 demo = os.path.join(fsdir, 'clips', 'DEMO.pbv')
 check(os.path.exists(demo) and open(demo, 'rb').read(4) == b'PBV1', 'the clip built into the firmware was copied to the file system')
