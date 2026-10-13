@@ -131,15 +131,26 @@ jobs:
         if: steps.rel.outputs.publish == 'true'
         run: |
           tag="${{ steps.rel.outputs.tag }}"
+          # The CHANGELOG.md section for this version: "## <tag>" for a tagged release,
+          # "## Unreleased" for a build from main
+          if [[ "$GITHUB_REF" == refs/tags/* ]]; then heading="$tag"; else heading="Unreleased"; fi
+          awk -v h="## $heading" '/^## /{p = (tolower($0) == tolower(h)); next} p' CHANGELOG.md > changelog.md
+          {
+            if grep -q '[^[:space:]]' changelog.md; then
+              echo "## What's new"
+              cat changelog.md
+              echo
+            fi
+          } > notes.md
           if [[ "$GITHUB_REF" == refs/tags/* ]] && [ "$(git cat-file -t "$tag")" = tag ]; then
-            git tag -l --format='%(contents)' "$tag" > notes.md     # an annotated tag: its message
+            git tag -l --format='%(contents)' "$tag" >> notes.md    # an annotated tag: its message
           else
             prev=$(git describe --tags --abbrev=0 HEAD^ 2>/dev/null || true)
             {
-              echo "Changes since ${prev:-the start}:"
+              echo "## Commits since ${prev:-the start}"
               echo
               git log --no-merges --format='- %s (%h)' ${prev:+$prev..}HEAD
-            } > notes.md
+            } >> notes.md
           fi
           {
             echo
