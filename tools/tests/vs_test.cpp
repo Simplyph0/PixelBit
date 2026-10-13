@@ -7,12 +7,13 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <unistd.h>
+#include "platform.h"
+void air_sleep_us(unsigned long long);
 extern int g_index, g_port, g_loss; extern uint32_t g_chip; void air_pump();
 // vs_test <pong|ttt|rps|c4> <host|join> <index> <loss%> <seconds>
 int main(int argc, char** argv) {
   const char* game = argv[1]; bool host = !strcmp(argv[2], "host"); g_index = atoi(argv[3]); g_loss = atoi(argv[4]); int secs = atoi(argv[5]);
-  g_chip = host ? 0x1A2B3C : 0x00FF01; srand(getpid() * 3 + g_index);
+  g_chip = host ? 0x1A2B3C : 0x00FF01; srand(plat::processId() * 3 + g_index);
   Game* g = !strcmp(game, "pong") ? (Game*)&pongGame : !strcmp(game, "ttt") ? (Game*)&ticTacToeGame : !strcmp(game, "c4") ? (Game*)&connect4Game : (Game*)&rpsGame;
   if (!strcmp(game, "pong")) { pongGame.setOption(0, 1); pongGame.setOption(2, 1); }
   if (!strcmp(game, "ttt")) ticTacToeGame.setOption(0, 1);
@@ -63,6 +64,6 @@ int main(int argc, char** argv) {
     if (!strcmp(game, "c4")) { bool over = connect4Game.seriesOver && connect4Game.roundResult; if (over && !wasOver) { wasOver = true; printf("[%s] c4 series over: me %d - opp %d\n", argv[2], connect4Game.myMark == 1 ? connect4Game.ptsX : connect4Game.ptsO, connect4Game.myMark == 1 ? connect4Game.ptsO : connect4Game.ptsX); } if (!over && wasOver) { wasOver = false; rematches++; printf("[%s] rematch started\n", argv[2]); } }
     if (!strcmp(game, "rps")) { bool over = rpsGame.stage == 2; if (over && !wasOver) { wasOver = true; printf("[%s] rps series over: me %d - opp %d\n", argv[2], rpsGame.myWins, rpsGame.opWins); } if (!over && wasOver) { wasOver = false; rematches++; printf("[%s] rematch started\n", argv[2]); } }
     if (g->wantsExit()) { printf("[%s] exit\n", argv[2]); break; }
-    frames++; usleep(40000);
+    frames++; air_sleep_us(40000);
   }
   g->stop(); printf("[%s] done\n", argv[2]); }

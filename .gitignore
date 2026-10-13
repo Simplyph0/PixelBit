@@ -22,3 +22,7 @@ tools/tests/update_test
 tools/tests/update_test_new
 tools/tests/update_test_old
 build/
+
+# Windows builds and CMake output
+tools/emulator/emulator.exe
+tools/tests/*.exe

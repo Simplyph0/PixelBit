@@ -29,21 +29,21 @@
 #include "settings.h"
 #include "capture.h"
 
+#include "platform.h"
+
 #ifdef USE_SDL
+#define SDL_MAIN_HANDLED   // keep our own main(): no SDL2main, and the console stays a console on Windows
 #include <SDL2/SDL.h>
+#ifdef main
+#undef main                // some SDL builds (MinGW) define main as SDL_main through the compiler flags
+#endif
 #endif
 
 #include <algorithm>
-#include <arpa/inet.h>
-#include <fcntl.h>
-#include <netinet/in.h>
 #include <signal.h>
-#include <sys/ioctl.h>
-#include <sys/socket.h>
-#include <sys/stat.h>
-#include <termios.h>
+#include <string>
 #include <time.h>
-#include <unistd.h>
+#include <vector>
 
 // ---------------------------------------------------------------------------
 // Arduino environment, with a clock that can run faster than real time
@@ -57,15 +57,11 @@ EspClass ESP;
 static uint8_t g_mac[6] = {0x02, 0, 0, 0, 0, 0x01};
 static double g_timeScale = 1.0;
 static bool g_quit = false;
-static timespec g_t0;
+static double g_t0 = 0;
 
-static double realMs() {
-  timespec t;
-  clock_gettime(CLOCK_MONOTONIC, &t);
-  return (t.tv_sec - g_t0.tv_sec) * 1000.0 + (t.tv_nsec - g_t0.tv_nsec) / 1e6;
-}
+static double realMs() { return plat::monotonicMs() - g_t0; }
 unsigned long millis() { return (unsigned long)(realMs() * g_timeScale) + 1000; }
-void delay(unsigned long ms) { usleep((useconds_t)(ms * 1000 / g_timeScale)); }
+void delay(unsigned long ms) { plat::sleepUs((unsigned long long)(ms * 1000 / g_timeScale)); }
 long random(long max) { return max > 0 ? rand() % max : 0; }
 long random(long min, long max) { return max > min ? min + rand() % (max - min) : min; }
 void pinMode(int, int) {}
@@ -163,7 +159,7 @@ bool UpdaterClass::end(bool evenIfRemaining) {
   fclose(g_updateFile); g_updateFile = nullptr; open = false;
   if (written != total && !evenIfRemaining) { failed = true; remove((g_updateOutPath + ".partial").c_str()); return false; }
   if (written != total) { remove((g_updateOutPath + ".partial").c_str()); return false; }
-  rename((g_updateOutPath + ".partial").c_str(), g_updateOutPath.c_str());   // "installed"
+  plat::replaceFile((g_updateOutPath + ".partial").c_str(), g_updateOutPath.c_str());   // "installed"
   return true;
 }
 
@@ -188,7 +184,7 @@ static std::string stamp() {
   strftime(b, sizeof b, "%Y%m%d-%H%M%S", localtime(&t));
   return b;
 }
-static void ensureDir(const char* d) { mkdir(d, 0755); }
+static void ensureDir(const char* d) { plat::makeDir(d); }
 
 static void takeScreenshot(const std::string& name = "") {
   ensureDir("shots");
@@ -274,40 +270,31 @@ static void runReplay() {
 // ---------------------------------------------------------------------------
 // Terminal front end
 // ---------------------------------------------------------------------------
-static termios g_oldTerm;
 static bool g_termSaved = false;
 
 static void restoreTerminal() {
   if (!g_termSaved) return;
-  tcsetattr(STDIN_FILENO, TCSANOW, &g_oldTerm);
   const char* s = "\x1b[?25h\x1b[?1049l";
-  ssize_t r = write(STDOUT_FILENO, s, strlen(s));
-  (void)r;
+  plat::termWrite(s, strlen(s));
+  plat::termRestore();
   g_termSaved = false;
 }
 
 static void onSignal(int) { g_quit = true; }
 
 static void setupTerminal() {
-  tcgetattr(STDIN_FILENO, &g_oldTerm);
+  if (!plat::termSetup()) fprintf(stderr, "note: this terminal could not be switched to raw mode; keys may not work (try the SDL window)\n");
   g_termSaved = true;
-  termios raw = g_oldTerm;
-  raw.c_lflag &= ~(ICANON | ECHO);
-  raw.c_cc[VMIN] = 0;
-  raw.c_cc[VTIME] = 0;
-  tcsetattr(STDIN_FILENO, TCSANOW, &raw);
-  fcntl(STDIN_FILENO, F_SETFL, fcntl(STDIN_FILENO, F_GETFL) | O_NONBLOCK);
   atexit(restoreTerminal);
   const char* s = "\x1b[?1049h\x1b[?25l\x1b[2J";
-  ssize_t r = write(STDOUT_FILENO, s, strlen(s));
-  (void)r;
+  plat::termWrite(s, strlen(s));
 }
 
 static void pollTerminalKeys() {
-  unsigned char buf[64];
-  ssize_t n = read(STDIN_FILENO, buf, sizeof buf);
+  uint8_t buf[64];
+  int n = plat::termRead(buf, sizeof buf);
   unsigned long until = millis() + KEY_HOLD_MS;
-  for (ssize_t i = 0; i < n; i++) {
+  for (int i = 0; i < n; i++) {
     int k = -1;
     unsigned char c = buf[i];
     if (c == 0x1b && i + 2 < n && buf[i + 1] == '[') {
@@ -354,8 +341,7 @@ static void drawTerminal(const Frame fb) {
   snprintf(line, sizeof line, "  %s\x1b[K\n  arrows/WASD buttons   P shot   G gif   R record inputs   Q quit    sent %lu, received %lu\x1b[K\n  %s\x1b[K\n",
            g_status.c_str(), g_txCount, g_rxCount, now < g_messageUntil ? g_message.c_str() : "");
   out += line;
-  ssize_t r = write(STDOUT_FILENO, out.data(), out.size());
-  (void)r;
+  plat::termWrite(out.data(), out.size());
 }
 
 // ---------------------------------------------------------------------------
@@ -431,6 +417,15 @@ static void drawSdl(const Frame fb) {
     SDL_SetWindowTitle(g_window, title);
   }
 }
+
+// Windows and macOS always have a window system; elsewhere look for X11 or Wayland
+static bool haveWindowSystem() {
+#if defined(_WIN32) || defined(__APPLE__)
+  return true;
+#else
+  return getenv("WAYLAND_DISPLAY") || getenv("DISPLAY");
+#endif
+}
 #endif
 
 // ---------------------------------------------------------------------------
@@ -442,7 +437,7 @@ void emulatorPresent(const uint8_t fbIn[64][128], bool inverted) {
 
   // EMULATOR_DUMP=file: also write the latest frame as text (for scripted tests)
   if (const char* dump = getenv("EMULATOR_DUMP")) {
-    if (FILE* f = fopen(dump, "w")) {
+    if (FILE* f = fopen(dump, "wb")) {
       for (int y = 0; y < 64; y += 2) {
         for (int x = 0; x < 128; x++) fputs(g_lastFrame[y][x] ? (g_lastFrame[y + 1][x] ? "\xe2\x96\x88" : "\xe2\x96\x80") : (g_lastFrame[y + 1][x] ? "\xe2\x96\x84" : " "), f);
         fputc('\n', f);
@@ -472,7 +467,7 @@ static void pollInput() {
 // Radio: serial bridge or UDP loopback
 // ---------------------------------------------------------------------------
 static esp_now_recv_cb_t g_recvCb = nullptr;
-static int g_serialFd = -1, g_udpSock = -1, g_udpIndex = 0, g_udpPort = 40000;
+static int g_udpIndex = 0, g_udpPort = 40000;
 static std::string g_serialBuf;
 static bool g_haveMac = false;
 
@@ -484,8 +479,7 @@ static void serialWriteFrame(const uint8_t* payload, size_t n) {
   uint8_t ck = n;
   for (size_t i = 0; i < n; i++) ck ^= payload[i];
   frame[2 + n] = ck;
-  ssize_t r = write(g_serialFd, frame, n + 3);
-  (void)r;
+  plat::serialWrite(frame, (int)n + 3);
 }
 
 static void handleBridgeFrame(const uint8_t* p, size_t n) {
@@ -504,8 +498,8 @@ static void handleBridgeFrame(const uint8_t* p, size_t n) {
 
 static void pumpSerial() {
   uint8_t buf[512];
-  ssize_t n;
-  while ((n = read(g_serialFd, buf, sizeof buf)) > 0) g_serialBuf.append((char*)buf, n);
+  int n;
+  while ((n = plat::serialRead(buf, sizeof buf)) > 0) g_serialBuf.append((char*)buf, n);
 
   for (;;) {
     size_t s = g_serialBuf.find((char)0xA5);
@@ -526,49 +520,32 @@ static void pumpSerial() {
 }
 
 static bool openBridge(const char* dev) {
-  g_serialFd = open(dev, O_RDWR | O_NOCTTY | O_NONBLOCK);
-  if (g_serialFd < 0) { fprintf(stderr, "cannot open %s\n", dev); return false; }
-  termios t;
-  tcgetattr(g_serialFd, &t);
-  cfmakeraw(&t);
-  cfsetspeed(&t, B115200);
-  t.c_cflag |= CLOCAL | CREAD;
-  tcsetattr(g_serialFd, TCSANOW, &t);
-  int bits = TIOCM_DTR | TIOCM_RTS;
-  ioctl(g_serialFd, TIOCMBIC, &bits);   // opening the port can reset the board; let it settle
+  if (!plat::serialOpen(dev)) { fprintf(stderr, "cannot open %s\n", dev); return false; }
   fprintf(stderr, "waiting for the bridge on %s ...\n", dev);
   unsigned long start = millis();
-  usleep(1500000);
-  tcflush(g_serialFd, TCIOFLUSH);
+  plat::sleepUs(1500000);   // opening the port can reset the board; let it settle
+  plat::serialFlushInput();
   while (!g_haveMac && millis() - start < 12000) {
     uint8_t ask = 'M';
     serialWriteFrame(&ask, 1);
-    usleep(300000);
+    plat::sleepUs(300000);
     pumpSerial();
   }
   if (!g_haveMac) { fprintf(stderr, "the bridge did not answer (is the bridge sketch flashed?)\n"); return false; }
   return true;
 }
 
-static void udpEmit(int port, const uint8_t* buf, int n) {
-  sockaddr_in a{};
-  a.sin_family = AF_INET;
-  a.sin_addr.s_addr = inet_addr("127.0.0.1");
-  a.sin_port = htons(port);
-  sendto(g_udpSock, buf, n, 0, (sockaddr*)&a, sizeof a);
-}
-
 static void pumpUdp() {
   uint8_t buf[300];
   int n;
-  while ((n = recv(g_udpSock, buf, sizeof buf, 0)) > 6) {
+  while ((n = plat::udpRecv(buf, sizeof buf)) > 6) {
     if (g_recvCb) { g_rxCount++; g_recvCb(buf, buf + 6, n - 6); }
   }
 }
 
 static void airPump() {
-  if (g_serialFd >= 0) pumpSerial();
-  else if (g_udpSock >= 0) pumpUdp();
+  if (plat::serialIsOpen()) pumpSerial();
+  else if (plat::udpIsOpen()) pumpUdp();
 }
 
 int esp_now_init() { return 0; }
@@ -582,17 +559,17 @@ int esp_now_add_peer(u8*, u8, u8, u8*, u8) { return 0; }
 
 int esp_now_send(u8* da, u8* data, int len) {
   g_txCount++;
-  if (g_serialFd >= 0) {
+  if (plat::serialIsOpen()) {
     uint8_t payload[260];
     payload[0] = 'T';
     memcpy(payload + 1, da, 6);
     memcpy(payload + 7, data, len);
     serialWriteFrame(payload, 7 + len);
-  } else if (g_udpSock >= 0) {
+  } else if (plat::udpIsOpen()) {
     uint8_t buf[300];
     memcpy(buf, g_mac, 6);
     memcpy(buf + 6, data, len);
-    udpEmit(g_udpPort + (1 - g_udpIndex), buf, 6 + len);
+    plat::udpSend(g_udpPort + (1 - g_udpIndex), buf, 6 + len);
   }
   if (g_sendCb) g_sendCb(da, 0);   // the real radio reports through this callback
   return 0;
@@ -605,8 +582,8 @@ void (*g_yieldHook)() = nullptr;
 
 int main(int argc, char** argv) {
   g_yieldHook = airPump;
-  clock_gettime(CLOCK_MONOTONIC, &g_t0);
-  g_seed = (unsigned)(time(nullptr) ^ getpid());
+  g_t0 = plat::monotonicMs();
+  g_seed = (unsigned)(time(nullptr) ^ plat::processId());
   const char* bridge = nullptr;
   const char* replay = nullptr;
   const char* firmwarePath = nullptr;
@@ -645,7 +622,7 @@ int main(int argc, char** argv) {
   if (headless) g_frontend = FE_HEADLESS;
   else if (forceTty) g_frontend = FE_TTY;
 #ifdef USE_SDL
-  else if (forceSdl || getenv("WAYLAND_DISPLAY") || getenv("DISPLAY")) g_frontend = FE_SDL;
+  else if (forceSdl || haveWindowSystem()) g_frontend = FE_SDL;
 #endif
   else g_frontend = FE_TTY;
   (void)forceSdl;
@@ -658,13 +635,7 @@ int main(int argc, char** argv) {
     g_udpIndex = udp & 1;
     g_mac[5] = 0x10 + g_udpIndex;
     g_mac[4] = rand();
-    g_udpSock = socket(AF_INET, SOCK_DGRAM, 0);
-    sockaddr_in a{};
-    a.sin_family = AF_INET;
-    a.sin_addr.s_addr = inet_addr("127.0.0.1");
-    a.sin_port = htons(g_udpPort + g_udpIndex);
-    if (bind(g_udpSock, (sockaddr*)&a, sizeof a) < 0) { perror("bind"); return 1; }
-    fcntl(g_udpSock, F_SETFL, O_NONBLOCK);
+    if (!plat::udpOpen(g_udpPort + g_udpIndex)) { fprintf(stderr, "cannot open UDP port %d\n", g_udpPort + g_udpIndex); return 1; }
     snprintf(status, sizeof status, "radio: UDP loopback, emulator %d", g_udpIndex);
   } else {
     snprintf(status, sizeof status, "radio: none (--bridge or --udp for Pong versus)");
@@ -674,6 +645,7 @@ int main(int argc, char** argv) {
   loadFlashImage(firmwarePath);   // after the radio has set the MAC, which seeds the made-up image
   if (g_frontend == FE_TTY) setupTerminal();
 #ifdef USE_SDL
+  if (g_frontend == FE_SDL) SDL_SetMainReady();
   if (g_frontend == FE_SDL && !setupSdl()) { fprintf(stderr, "no SDL display; use --tty or --headless\n"); return 1; }
 #endif
   signal(SIGINT, onSignal);

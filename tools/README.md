@@ -3,12 +3,32 @@
 ## emulator/
 Runs the real console firmware on your PC, so you can test games, menus and two-console play without hardware.
 
-    cd tools/emulator && make
+Runs on Linux, macOS and Windows. Pick one way to build it:
+
+**CMake (all three systems, recommended).** Downloads Adafruit GFX by itself if the Arduino IDE's copy is not found, and builds the tests too.
+
+    cmake -S tools -B build/tools -G Ninja       # or leave out -G Ninja to use your default generator
+    cmake --build build/tools
+    build/tools/emulator                          # build\tools\emulator.exe on Windows
+    ctest --test-dir build/tools --output-on-failure   # the tests
+
+- **Linux:** `sudo apt install build-essential cmake ninja-build libsdl2-dev python3` (or your distribution's names).
+- **macOS:** `xcode-select --install`, then `brew install cmake ninja sdl2`.
+- **Windows:** install [MSYS2](https://www.msys2.org), open the "MSYS2 UCRT64" shell, then `pacman -S mingw-w64-ucrt-x86_64-gcc mingw-w64-ucrt-x86_64-cmake mingw-w64-ucrt-x86_64-ninja mingw-w64-ucrt-x86_64-SDL2 mingw-w64-ucrt-x86_64-python git` and run the commands above in that shell. Visual Studio's own compiler is not supported (the firmware sources use GCC extensions). To run the finished `emulator.exe` outside MSYS2, add `C:\msys64\ucrt64\bin` to your PATH (it holds `SDL2.dll`).
+
+SDL2 is optional; without it the emulator only has the terminal screen. Pass `-DGFX=/path/to/Adafruit_GFX_Library` to use a copy you already have.
+
+**Make (Linux, macOS, or MSYS2).** `cd tools/emulator && make`, and `make test` in `tools/tests`. It looks for Adafruit GFX in the Arduino IDE's folder (`~/Arduino/libraries`, or `~/Documents/Arduino/libraries` on macOS and Windows); set `GFX=...` if yours is elsewhere.
+
+Run it:
+
     ./emulator                                     # a window (needs SDL2), else the terminal
     ./emulator --udp 0    and    ./emulator --udp 1   # two emulated consoles talk to each other
     ./emulator --bridge /dev/ttyACM0               # an emulated console on the real radio, through the bridge board
 
-Needs the Adafruit GFX library (installed by the Arduino IDE). SDL2 is optional: with it you get a window that sees real key presses and releases; without it, or with `--tty`, the screen is drawn in the terminal and a key counts as held for a moment because terminals send no key release. Scores and settings are not saved.
+The bridge's port name is `/dev/ttyACM0` or similar on Linux, `/dev/cu.usbmodem...` on macOS and `COM3` or similar on Windows.
+
+Needs the Adafruit GFX library (installed by the Arduino IDE, or downloaded by CMake). SDL2 is optional: with it you get a window that sees real key presses and releases; without it, or with `--tty`, the screen is drawn in the terminal and a key counts as held for a moment because terminals send no key release. The terminal screen uses UTF-8 braille characters and ANSI escapes: on Windows use Windows Terminal or the Windows 10 console. Scores and settings are not saved.
 
 | Key | Action |
 |---|---|
@@ -29,9 +49,9 @@ A replay file is plain text, times in milliseconds since the emulator started (t
     3500 shot menu   # save shots/menu.png
     9000 quit
 
-`make update_test` followed by `python3 update_check.py` in `tools/tests` runs two simulated consoles through the firmware update (newer, same, older, denied, bad hash, no space, sender vanishing, lossy radio) and checks what gets installed.
+`ctest -R firmware_update` (or `make update_test` followed by `python3 update_check.py` in `tools/tests`) runs two simulated consoles through the firmware update (newer, same, older, denied, bad hash, no space, sender vanishing, lossy radio) and checks what gets installed.
 
-Run `make test` in `tools/tests` to check the game rules, the AIs, the two-console games and that scores, settings and the first-boot flag are really saved and survive a restart. GitHub Actions runs the same tests before every release build (`.github/workflows/build.yml`).
+Run `ctest --test-dir build/tools` (or `make test` in `tools/tests`) to check the game rules, the AIs, the two-console games and that scores, settings and the first-boot flag are really saved and survive a restart. GitHub Actions runs the same tests on Linux, macOS and Windows before every release build (`.github/workflows/build.yml`).
 
 The emulator's keys are always the logical buttons: the arrow you press is the button the game sees, whatever `FLIPPED_BUTTONS` is set to.
 

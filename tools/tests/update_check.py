@@ -4,6 +4,9 @@ several situations, and checks what ended up "installed" on the receiver."""
 import re, os, random, subprocess, sys, tempfile, hashlib, time
 
 HERE = os.path.dirname(os.path.abspath(__file__))
+EXE = '.exe' if os.name == 'nt' else ''
+SPEED = os.environ.get('PB_SPEED', '4')   # simulated clock speed: the radio is a loopback, so it keeps up
+BIN = os.path.abspath(sys.argv[1]) if len(sys.argv) > 1 else HERE   # directory with update_test, update_test_new, update_test_old
 tmp = tempfile.mkdtemp()
 random.seed(7)
 
@@ -20,11 +23,11 @@ def run(name, tx, rx, loss=0, env_tx=None, env_rx=None, secs=70):
     out = f'{tmp}/out-{name}.bin'
     for p in (out, out + '.partial'):
         if os.path.exists(p): os.remove(p)
-    e_rx = dict(os.environ, FW_IMAGE=f'{tmp}/receiver.bin', FW_OUT=out, **(env_rx or {}))
-    e_tx = dict(os.environ, FW_IMAGE=f'{tmp}/sender.bin', FW_OUT=out + '.tx', **(env_tx or {}))
+    e_rx = dict(os.environ, PB_SPEED=SPEED, FW_IMAGE=f'{tmp}/receiver.bin', FW_OUT=out, **(env_rx or {}))
+    e_tx = dict(os.environ, PB_SPEED=SPEED, FW_IMAGE=f'{tmp}/sender.bin', FW_OUT=out + '.tx', **(env_tx or {}))
     t0 = time.time()
-    prx = subprocess.Popen([f'{HERE}/{rx}', 'rx', '0', str(loss), str(secs)], env=e_rx, stdout=subprocess.PIPE, text=True)
-    ptx = subprocess.Popen([f'{HERE}/{tx}', 'tx', '1', str(loss), str(secs)], env=e_tx, stdout=subprocess.PIPE, text=True)
+    prx = subprocess.Popen([os.path.join(BIN, rx + EXE), 'rx', '0', str(loss), str(secs)], env=e_rx, stdout=subprocess.PIPE, text=True)
+    ptx = subprocess.Popen([os.path.join(BIN, tx + EXE), 'tx', '1', str(loss), str(secs)], env=e_tx, stdout=subprocess.PIPE, text=True)
     log_tx = ptx.communicate()[0]; log_rx = prx.communicate()[0]
     installed = open(out, 'rb').read() if os.path.exists(out) else None
     return installed, log_rx, log_tx, time.time() - t0

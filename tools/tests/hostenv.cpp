@@ -10,6 +10,7 @@
 #include <string>
 #include <stdio.h>
 #include <stdlib.h>
+#include "platform.h"
 void (*g_yieldHook)() = nullptr;
 SerialT Serial; TwoWire Wire; EEPROMClass EEPROM; WiFiClass WiFi; EspClass ESP;
 void emulatorEepromLoad(uint8_t*, size_t) {}
@@ -55,4 +56,4 @@ UpdaterClass Update;
 static FILE* g_uf = nullptr;
 bool UpdaterClass::begin(size_t size, int, int, uint8_t) { ensureFlash(); if (open || !size || size > g_free) { failed = true; return false; } g_uf = fopen((g_outPath + ".partial").c_str(), "wb"); total = size; written = 0; open = true; failed = false; return g_uf != nullptr; }
 size_t UpdaterClass::write(uint8_t* d, size_t n) { if (!open || written + n > total) { failed = true; return 0; } fwrite(d, 1, n, g_uf); written += n; return n; }
-bool UpdaterClass::end(bool even) { if (!open) return false; fclose(g_uf); open = false; if (written != total) { remove((g_outPath + ".partial").c_str()); failed = true; return false; } rename((g_outPath + ".partial").c_str(), g_outPath.c_str()); return true; }
+bool UpdaterClass::end(bool even) { if (!open) return false; fclose(g_uf); open = false; if (written != total) { remove((g_outPath + ".partial").c_str()); failed = true; return false; } plat::replaceFile((g_outPath + ".partial").c_str(), g_outPath.c_str()); return true; }

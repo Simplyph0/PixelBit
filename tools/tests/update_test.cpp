@@ -10,11 +10,12 @@
 #include <cstdio>
 #include <cstdlib>
 #include <cstring>
-#include <unistd.h>
+#include "platform.h"
+void air_sleep_us(unsigned long long);
 extern unsigned long g_sentPackets, g_recvPackets; extern int g_index, g_port, g_loss; extern uint32_t g_chip; void air_pump(); extern bool g_restarted;
 int main(int argc, char** argv) {
   bool rx = !strcmp(argv[1], "rx"); g_index = atoi(argv[2]); g_loss = atoi(argv[3]); int secs = atoi(argv[4]);
-  g_chip = rx ? 0x1A2B3C : 0x00FF01; srand(getpid() * 5 + g_index);
+  g_chip = rx ? 0x1A2B3C : 0x00FF01; srand(plat::processId() * 5 + g_index);
   fwUpdate.begin(); buttons = {};
   unsigned long t0 = millis(); int lastPhase = -1; int frames = 0; bool decided = false;
   while (millis() - t0 < (unsigned long)secs * 1000) {
@@ -34,7 +35,7 @@ int main(int argc, char** argv) {
     }
     if (!rx && f.phase == FirmwareUpdate::PH_TX_SEND && getenv("UT_KILL")) {
       int pct = f.chunks ? (int)((uint32_t)f.base * 100 / f.chunks) : 0;
-      if (pct >= atoi(getenv("UT_KILL"))) { printf("[tx] killed at %d%%\n", pct); fflush(stdout); _exit(0); }
+      if (pct >= atoi(getenv("UT_KILL"))) { printf("[tx] killed at %d%%\n", pct); fflush(stdout); plat::exitNow(0); }
     }
     static unsigned long ps = 0, pr = 0; unsigned long fs = millis();
     bool leave = f.update(); f.draw();
@@ -52,7 +53,7 @@ int main(int argc, char** argv) {
       if (fin && !endAt) endAt = millis() + 1500; if (endAt && millis() > endAt) break; }
     if (leave) break;
     if (g_restarted) break;
-    frames++; usleep(frames % 8 ? 16000 : 40000);   // a normal frame is about 16 ms; now and then one is long, as when the display is refreshed
+    frames++; air_sleep_us(frames % 8 ? 16000 : 40000);   // a normal frame is about 16 ms; now and then one is long, as when the display is refreshed
   }
   printf("[%s] done after %lu ms\n", argv[1], millis() - t0);
 }

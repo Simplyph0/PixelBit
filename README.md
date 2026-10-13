@@ -87,7 +87,7 @@ PixelBit is a handheld arcade you can fit in your pocket. It's an ESP8266, a tin
 - A manufacturing test mode for checking new units, see [Manufacturing test mode](#manufacturing-test-mode)
 - Console-to-console firmware updates over ESP-NOW, no cable or PC needed, see [Console-to-console firmware update](#console-to-console-firmware-update)
 - Board built upside down? One setting (`FLIPPED_BUTTONS`) swaps the buttons, and swapped display pins are found on their own
-- A PC emulator and automated tests, see [tools/](tools/README.md)
+- A PC emulator for Linux, macOS and Windows, and automated tests that run on all three, see [tools/](tools/README.md)
 - Ready-made `.bin` files on the [Releases](https://github.com/Simplyph0/PixelBit/releases) page, built and tested automatically
 
 <table>
@@ -319,8 +319,9 @@ In the emulator, add `--firmware file.bin` to load a real image to send, `--upda
 | Folder or file | What it is |
 |---|---|
 | `GameSystem/` | The firmware. Open `GameSystem.ino` |
-| `tools/emulator/` | A PC emulator that runs the real firmware in a window. Screenshots, GIFs, input recording and replay |
-| `tools/tests/` | Automated checks for the game rules, the AIs, two-console play and saved data. Run `make test` in there |
+| `tools/emulator/` | A PC emulator (Linux, macOS, Windows) that runs the real firmware in a window. Screenshots, GIFs, input recording and replay |
+| `tools/tests/` | Automated checks for the game rules, the AIs, two-console play and saved data. Run `ctest --test-dir build/tools` (CMake) or `make test` in there |
+| `tools/CMakeLists.txt` | Builds the emulator and the tests on Linux, macOS and Windows |
 | `tools/bridge/` | Firmware for an ESP32 board so the emulator can play a real console |
 | `Instructions.md`, `Instructions.pdf`, `images/` | The original build guide and photos |
 | `.github/workflows/` | Builds, tests and publishes a release for every firmware change |
@@ -342,7 +343,7 @@ In the emulator, add `--firmware file.bin` to load a real image to send, `--upda
 All the screenshots in this README came from the emulator, so you can make the same ones yourself.
 
 ```
-cd tools/emulator && make && ./emulator
+cmake -S tools -B build/tools && cmake --build build/tools && build/tools/emulator
 ```
 Check [tools/README.md](tools/README.md) for the keys, replay files, and how to run two emulators against each other.
 

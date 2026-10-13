@@ -25,19 +25,51 @@ permissions:
 
 jobs:
   test:
-    runs-on: ubuntu-latest
+    name: test (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - { os: ubuntu-latest,  shell: bash }
+          - { os: macos-latest,   shell: bash }
+          - { os: windows-latest, shell: "msys2 {0}" }
+    runs-on: ${{ matrix.os }}
+    defaults:
+      run:
+        shell: ${{ matrix.shell }}
     steps:
       - uses: actions/checkout@v4
 
-      - uses: arduino/setup-arduino-cli@v2
+      # Windows builds with MinGW-w64 from MSYS2; SDL2 is installed everywhere so
+      # the emulator's window code is compiled too
+      - uses: msys2/setup-msys2@v2
+        if: runner.os == 'Windows'
+        with:
+          msystem: UCRT64
+          update: true
+          install: >-
+            git
+            mingw-w64-ucrt-x86_64-gcc
+            mingw-w64-ucrt-x86_64-cmake
+            mingw-w64-ucrt-x86_64-ninja
+            mingw-w64-ucrt-x86_64-SDL2
+            mingw-w64-ucrt-x86_64-python
 
-      - name: Install the libraries the tests compile against
+      - name: Install SDL2 (Linux)
+        if: runner.os == 'Linux'
+        run: sudo apt-get update && sudo apt-get install -y libsdl2-dev ninja-build
+
+      - name: Install SDL2 (macOS)
+        if: runner.os == 'macOS'
+        run: brew install sdl2 ninja
+
+      - name: Build the emulator and the tests
         run: |
-          arduino-cli lib update-index
-          arduino-cli lib install "Adafruit GFX Library"
+          cmake -S tools -B build/tools -G Ninja -DCMAKE_BUILD_TYPE=Release
+          cmake --build build/tools
 
       - name: Run the tests
-        run: make -C tools/tests test GFX="$HOME/Arduino/libraries/Adafruit_GFX_Library"
+        run: ctest --test-dir build/tools --output-on-failure
 
   build:
     needs: test
