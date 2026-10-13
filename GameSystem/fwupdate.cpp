@@ -149,7 +149,7 @@ bool FirmwareUpdate::update() {
         else if (since(lastAck) > 150 && rxSinceAck) sendAck();
       } else if (phase == PH_RX_DONE) {
         // the sender may have missed the result: repeat it until we restart
-        if (since(lastResultAt) > 300) { sendControl(M_RESULT, R_OK); lastResultAt = millis(); }
+        if (since(lastResultAt) > 300) { sendControl(M_RESULT, R_SUCCESS); lastResultAt = millis(); }
         if (millis() >= restartAt) ESP.restart();
       } else if (buttons.downPressed) {
         leave = true;
@@ -321,7 +321,7 @@ void FirmwareUpdate::handleSenderMessage(const uint8_t* m, uint8_t n) {
     case M_RESULT:
       if (n >= 2 && (phase == PH_TX_SEND || phase == PH_TX_DONE)) {
         uint8_t code = m[1];
-        if (code == R_OK) {
+        if (code == R_SUCCESS) {
           phase = PH_TX_DONE;
         } else if (code == R_HASH) {
           fail("UPDATE FAILED", "The image did not match", "its checksum. Not installed.");
@@ -486,7 +486,7 @@ void FirmwareUpdate::finishReceive() {
   }
   updateOpen = false;
   sendAck();
-  sendControl(M_RESULT, R_OK);
+  sendControl(M_RESULT, R_SUCCESS);
   unsigned long until = millis() + 200;
   while (millis() < until) { gameLink.poll(); yield(); }
   phase = PH_RX_DONE;

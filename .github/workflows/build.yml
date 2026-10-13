@@ -66,7 +66,7 @@ jobs:
       - name: Build the emulator and the tests
         run: |
           cmake -S tools -B build/tools -G Ninja -DCMAKE_BUILD_TYPE=Release
-          cmake --build build/tools
+          cmake --build build/tools -- -k 0   # keep going after an error, so one run shows every failure
 
       - name: Run the tests
         run: ctest --test-dir build/tools --output-on-failure

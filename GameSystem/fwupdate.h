@@ -44,7 +44,7 @@ private:
     M_OFFER = 0x10, M_ACCEPT = 0x11, M_DENY = 0x12, M_CHUNK = 0x13,
     M_ACK = 0x14, M_RESULT = 0x15, M_PROBE = 0x17
   };
-  enum Reason : uint8_t { R_OK = 0, R_DENIED = 1, R_OLDER = 2, R_NO_SPACE = 3, R_HASH = 4, R_WRITE = 5, R_HEADER = 6, R_BUSY = 7 };
+  enum Reason : uint8_t { R_SUCCESS = 0, R_DENIED = 1, R_OLDER = 2, R_NO_SPACE = 3, R_HASH = 4, R_WRITE = 5, R_HEADER = 6, R_BUSY = 7 };
 
   Lobby lobby;
   Phase phase = PH_CHOOSE;
