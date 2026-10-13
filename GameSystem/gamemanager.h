@@ -17,6 +17,7 @@
 #include "tictactoe.h"
 #include "rps.h"
 #include "connect4.h"
+#include "videoplayer.h"
 #include "tutorial.h"
 #include "welcome.h"
 #include "testmode.h"

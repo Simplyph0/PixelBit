@@ -15,7 +15,8 @@ GameManager gameManager;
 // Indexed by GameID (see config.h)
 Game* const GameManager::games[MAX_GAMES] = {
   &snakeGame, &tetrisGame, &flappyGame, &game2048, &breakoutGame, &froggerGame,
-  &helicopterGame, &pacmanGame, &pongGame, &invadersGame, &dinoGame, &ticTacToeGame, &rpsGame, &connect4Game
+  &helicopterGame, &pacmanGame, &pongGame, &invadersGame, &dinoGame, &ticTacToeGame, &rpsGame, &connect4Game,
+  &videoGame
 };
 
 void initGameManager() {
@@ -287,8 +288,9 @@ void GameManager::showMenu() {
   // Name and best score of the selected game
   drawCenteredText(games[menuSelection]->getName(), 49, 1);
   int best = getGameHighscore(menuSelection);
-  if (best > 0) snprintf(text, sizeof(text), "BEST %d", best);
-  else          snprintf(text, sizeof(text), "NO SCORE");
+  if (!games[menuSelection]->hasScore()) snprintf(text, sizeof(text), "NO SOUND");
+  else if (best > 0) snprintf(text, sizeof(text), "BEST %d", best);
+  else               snprintf(text, sizeof(text), "NO SCORE");
   drawCenteredText(text, 57, 1);
 
   // Games with settings: DOWN opens them

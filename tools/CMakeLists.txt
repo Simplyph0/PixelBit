@@ -109,6 +109,8 @@ pb_test(vs_test ${TESTS}/vs_test.cpp ${TESTS}/air.cpp ${CORE_SRC} ${LINK_SRC}
         ${FW}/pong.cpp ${FW}/tictactoe.cpp ${FW}/rps.cpp ${FW}/connect4.cpp)
 target_compile_definitions(vs_test PRIVATE USE_AIR)
 
+pb_test(pbv_test ${TESTS}/pbv_test.cpp ${FW}/pbvcodec.cpp)
+
 # the firmware update: three builds with different version numbers talk to each other
 function(pb_update_test name)   # pb_update_test(name [version number])
   pb_test(${name} ${TESTS}/update_test.cpp ${TESTS}/air.cpp ${CORE_SRC} ${LINK_SRC} ${FW}/fwupdate.cpp)
@@ -131,7 +133,8 @@ if(Python3_FOUND)
   add_test(NAME persistence COMMAND ${Python3_EXECUTABLE} ${TESTS}/persistence_check.py $<TARGET_FILE:emulator>)
   add_test(NAME versus COMMAND ${Python3_EXECUTABLE} ${TESTS}/vs_check.py $<TARGET_FILE_DIR:vs_test>)
   add_test(NAME firmware_update COMMAND ${Python3_EXECUTABLE} ${TESTS}/update_check.py $<TARGET_FILE_DIR:update_test>)
-  set_tests_properties(persistence versus firmware_update PROPERTIES TIMEOUT 600)
+  add_test(NAME video COMMAND ${Python3_EXECUTABLE} ${TESTS}/video_check.py $<TARGET_FILE:pbv_test> $<TARGET_FILE:emulator>)
+  set_tests_properties(persistence video versus firmware_update PROPERTIES TIMEOUT 600)
   # versus and firmware_update talk over the same UDP ports: never at the same time, even with ctest -j
   set_tests_properties(versus firmware_update PROPERTIES RESOURCE_LOCK radio)
 endif()

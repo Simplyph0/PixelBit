@@ -56,7 +56,7 @@
 #define FRAME_IDLE_MS 16
 
 // Game Constants
-#define MAX_GAMES 14
+#define MAX_GAMES 15
 #define BUTTON_DELAY 150
 #define MENU_REPEAT_DELAY_MS 350   // hold LEFT/RIGHT this long before the menu starts scrolling
 #define MENU_REPEAT_MS 110         // then it steps this often
@@ -101,7 +101,8 @@ enum GameID {
   GAME_DINO = 10,
   GAME_TICTACTOE = 11,
   GAME_RPS = 12,
-  GAME_CONNECT4 = 13
+  GAME_CONNECT4 = 13,
+  GAME_VIDEO = 14
 };
 
 // Game States

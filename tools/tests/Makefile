@@ -21,7 +21,7 @@ CORE := hostenv.cpp $(EM)/platform_common.cpp $(PLATFORM) $(GFX)/Adafruit_GFX.cp
 LINK := $(FW)/lobby.cpp $(FW)/gamelink.cpp $(FW)/crypto.cpp
 GAMES := $(addsuffix .cpp,$(addprefix $(FW)/,snake tetris flappy game2048 breakout frogger helicopter pacman pong invaders dino))
 
-PROGRAMS := logic_test ttt_test rps_test vs_test settings_test
+PROGRAMS := logic_test ttt_test rps_test vs_test settings_test pbv_test
 
 test: $(addsuffix $(EXE),$(PROGRAMS))
 	./logic_test$(EXE)
@@ -29,6 +29,7 @@ test: $(addsuffix $(EXE),$(PROGRAMS))
 	$(MAKE) -C $(EM) --no-print-directory > /dev/null && $(PY) persistence_check.py $(EM)/emulator$(EXE)
 	./ttt_test$(EXE)
 	./rps_test$(EXE)
+	$(MAKE) -C $(EM) --no-print-directory > /dev/null && $(PY) video_check.py ./pbv_test$(EXE) $(EM)/emulator$(EXE)
 	$(PY) vs_check.py .
 
 logic_test$(EXE): logic_test.cpp $(CORE) $(LINK) $(GAMES)
@@ -42,6 +43,9 @@ rps_test$(EXE): rps_test.cpp $(CORE) $(FW)/rps.cpp $(LINK)
 
 vs_test$(EXE): vs_test.cpp air.cpp $(CORE) $(LINK) $(FW)/pong.cpp $(FW)/tictactoe.cpp $(FW)/rps.cpp $(FW)/connect4.cpp
 	g++ $(CXX_FLAGS) -DUSE_AIR -o $@ vs_test.cpp air.cpp $(CORE) $(LINK) $(FW)/pong.cpp $(FW)/tictactoe.cpp $(FW)/rps.cpp $(FW)/connect4.cpp $(SYSLIBS)
+
+pbv_test$(EXE): pbv_test.cpp $(FW)/pbvcodec.cpp
+	g++ $(CXX_FLAGS) -o $@ pbv_test.cpp $(FW)/pbvcodec.cpp
 
 settings_test$(EXE): settings_test.cpp $(CORE) $(FW)/settings.cpp
 	g++ $(CXX_FLAGS) -o $@ settings_test.cpp $(CORE) $(FW)/settings.cpp $(SYSLIBS)

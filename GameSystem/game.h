@@ -25,6 +25,8 @@ public:
   virtual bool isGameOver() = 0;
   virtual bool isGameWon() { return false; }
   virtual int getScore() = 0;
+  // false for something that is not scored (the video player): the menu then shows no "best" line
+  virtual bool hasScore() { return true; }
   virtual const char* getName() = 0;
 
   // Called when the player leaves the game (menu, exit combo, game over), so a

@@ -62,3 +62,11 @@ Firmware for an ESP32 board (tested target: ESP32-C3 SuperMini) that carries ESP
 packets between the air and the PC over USB, so the emulator can play against a real
 console. `micropython/main.py` is the quick way (flash MicroPython, copy the file);
 `bridge/bridge.ino` is the Arduino version.
+
+## video/
+`pbv.py` turns a video into a `.pbv` file for the console's video player (black and white, no sound). It needs Python 3 and ffmpeg and works on Windows, macOS and Linux. See [Videos](../README.md#videos) in the main README for the options (`--pixel 1` to `4` sets how much detail you trade for how easy the picture is to see), and `GameSystem/pbvcodec.h` for the file format.
+
+    python3 video/pbv.py movie.mp4 --pixel 2 --fps 12
+    python3 video/pbv.py --demo -o demo.pbv
+
+In the emulator the console's flash file system is a folder: `pixelbit-fs` in the current directory, or the one named by the `PB_FS` environment variable. Put a `.pbv` in its `clips/` folder and the VIDEOS entry plays it. The upload web page is not emulated.
