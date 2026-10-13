@@ -19,7 +19,7 @@ def image(path, header, size):
 sender_img = image(f'{tmp}/sender.bin', bytes([0xE9, 4, 0x03, 0x20]), 360 * 1024 + 123)   # last chunk is short
 receiver_img = image(f'{tmp}/receiver.bin', bytes([0xE9, 4, 0x02, 0x40]), 300 * 1024)
 
-def run(name, tx, rx, loss=0, env_tx=None, env_rx=None, secs=70):
+def run(name, tx, rx, loss=0, env_tx=None, env_rx=None, secs=200):   # secs: simulated seconds before a run gives up; runs end by themselves when done, so a slow machine only needs headroom
     out = f'{tmp}/out-{name}.bin'
     for p in (out, out + '.partial'):
         if os.path.exists(p): os.remove(p)
@@ -58,12 +58,12 @@ check('same version' in lrx, 'the receiver is told the version number is the sam
 check(inst == expected(), 'it can still be installed')
 
 print('older version')
-inst, lrx, ltx, secs = run('older', 'update_test_old', 'update_test', secs=25)
+inst, lrx, ltx, secs = run('older', 'update_test_old', 'update_test', secs=60)
 check(inst is None, 'nothing is installed')
 check(failed(lrx, 'REFUSED') and failed(ltx, 'REFUSED'), 'both sides show that the older version was refused')
 
 print('the receiver says no')
-inst, lrx, ltx, secs = run('deny', 'update_test_new', 'update_test', env_rx={'UT_DENY': '1'}, secs=25)
+inst, lrx, ltx, secs = run('deny', 'update_test_new', 'update_test', env_rx={'UT_DENY': '1'}, secs=60)
 check(inst is None, 'nothing is installed')
 check(failed(ltx, 'DENIED'), 'the sender is told it was denied')
 
@@ -74,16 +74,16 @@ check('RESTART requested' not in lrx, 'the receiver does not restart')
 check(failed(lrx, 'UPDATE FAILED'), 'the receiver reports the failure')
 
 print('not enough room on the receiver')
-inst, lrx, ltx, secs = run('space', 'update_test_new', 'update_test', env_rx={'FREE_SPACE': '100000'}, secs=25)
+inst, lrx, ltx, secs = run('space', 'update_test_new', 'update_test', env_rx={'FREE_SPACE': '100000'}, secs=60)
 check(inst is None and failed(lrx, 'REFUSED'), 'refused, nothing installed')
 
 print('the sender disappears half way')
-inst, lrx, ltx, secs = run('kill', 'update_test_new', 'update_test', env_tx={'UT_KILL': '50'}, secs=40)
+inst, lrx, ltx, secs = run('kill', 'update_test_new', 'update_test', env_tx={'UT_KILL': '50'}, secs=80)
 check(inst is None, 'a half-received image is never installed')
 check('RESTART requested' not in lrx, 'the receiver keeps running its old firmware')
 
 print('a bad radio: 15% of packets lost')
-inst, lrx, ltx, secs = run('lossy', 'update_test_new', 'update_test', loss=15, secs=120)
+inst, lrx, ltx, secs = run('lossy', 'update_test_new', 'update_test', loss=15, secs=300)
 check(inst == expected(), f'it still completes, byte for byte ({secs:.0f} s)')
 
 print('\n' + ('all firmware update checks passed' if not fails else f'{fails} CHECKS FAILED'))

@@ -9,6 +9,7 @@
 #include <winsock2.h>
 #include <ws2tcpip.h>
 #include <windows.h>
+#include <mmsystem.h>   // timeBeginPeriod; not part of WIN32_LEAN_AND_MEAN
 #include <process.h>
 #include <stdio.h>
 #include <stdlib.h>
