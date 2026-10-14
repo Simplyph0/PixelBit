@@ -8,6 +8,7 @@ struct UpdaterClass {
   size_t write(uint8_t* data, size_t len);
   bool end(bool evenIfRemaining = false);
   bool hasError() { return failed; }
+  uint8_t getError() { return failed ? 1 : 0; }
   size_t total = 0, written = 0;
   bool open = false, failed = false;
 };

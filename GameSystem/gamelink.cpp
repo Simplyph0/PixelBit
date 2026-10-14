@@ -91,7 +91,8 @@ static void ensurePeer(const uint8_t* mac) {
 }
 
 static void rawSend(const uint8_t* mac, const uint8_t* data, uint8_t len) {
-  esp_now_send((uint8_t*)mac, (uint8_t*)data, len);
+  int r = esp_now_send((uint8_t*)mac, (uint8_t*)data, len);
+  if (r != 0) { static uint8_t shown = 0; if (shown++ < 10) ULOG("link: esp_now_send returned %d for %u bytes\n", r, len); }
 }
 
 void GameLink::randomBytes(uint8_t* out, uint8_t n) {
@@ -284,15 +285,15 @@ bool GameLink::bulkFailed() {
 void GameLink::handleBulk(const uint8_t* mac, const uint8_t* data, uint8_t len) {
   if (linkState != LINK_CONNECTED && linkState != LINK_ACCEPTING) return;
   if (!sameBytes(mac, peerMac, 6)) return;
-  if (len < 6 + 1 + TAG_LEN || len > 6 + LINK_BULK_MAX + TAG_LEN) return;
+  if (len < 6 + 1 + TAG_LEN || len > 6 + LINK_BULK_MAX + TAG_LEN) { ULOG("link: bulk packet of %u bytes refused (size)\n", len); return; }
 
   uint8_t payload = len - 6 - TAG_LEN;
   uint8_t mac32[32];
   bulkTag(sessionKey, amHost ? 1 : 0, data, 6 + payload, mac32);   // the sender's direction
-  if (!sameBytes(mac32, data + 6 + payload, TAG_LEN)) return;
+  if (!sameBytes(mac32, data + 6 + payload, TAG_LEN)) { static uint8_t shown = 0; if (shown++ < 10) ULOG("link: bulk packet of %u bytes refused (tag does not match)\n", len); return; }
 
   uint32_t seq = (uint32_t)data[2] | (uint32_t)data[3] << 8 | (uint32_t)data[4] << 16 | (uint32_t)data[5] << 24;
-  if (rxBulkSeqValid && (int32_t)(seq - rxBulkSeq) <= 0) return;   // replayed or reordered
+  if (rxBulkSeqValid && (int32_t)(seq - rxBulkSeq) <= 0) { static uint8_t shown = 0; if (shown++ < 10) ULOG("link: bulk packet seq %lu refused (last was %lu)\n", (unsigned long)seq, (unsigned long)rxBulkSeq); return; }   // replayed or reordered
   rxBulkSeq = seq;
   rxBulkSeqValid = true;
 
@@ -515,6 +516,14 @@ void GameLink::handleSession(const uint8_t* mac, const uint8_t* data, uint8_t le
 // Per-frame work
 // ---------------------------------------------------------------------------
 void GameLink::poll() {
+  // A packet handler can wait for the radio (the firmware update's acknowledgements do) and call
+  // poll() while it waits. Running poll() from inside itself would handle the next queued packet
+  // in the middle of the first, and so on: one nesting level per packet in a burst, until the 4 KB
+  // stack overflows and the console panics. So poll() does nothing when it is already running.
+  static bool inPoll = false;
+  if (inPoll) return;
+  struct Guard { Guard() { inPoll = true; } ~Guard() { inPoll = false; } } guard;
+
   while (rxTail != rxHead) {
     RxSlot slot;
     memcpy(&slot, &rxQueue[rxTail], sizeof(slot));

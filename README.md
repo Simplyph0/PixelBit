@@ -335,7 +335,7 @@ What happens:
 1. The sender reads its own flash and works out a SHA-256 hash of its firmware.
 2. It offers the version, size, and hash to the receiver.
 3. The receiver checks the offer and shows a consent screen. **Up** installs, **Down** denies. Nothing is written until you press Up.
-4. The firmware goes over in 192 byte chunks with acknowledgements, a window of 8 chunks in flight, and resends for anything lost. It takes a few seconds to a minute depending on the radio.
+4. The firmware goes over in 192 byte chunks with acknowledgements, a window of 8 chunks in flight, and resends for anything lost. On two real consoles a 470 KB firmware took about 10 seconds; a poor radio link can make it take up to a minute.
 5. The receiver hashes what it got and only installs it if the hash matches. Then it restarts.
 
 Version rules: a newer version is offered normally. If the version number is the same, the receiver is told "Same version number as this build" and can still install it (handy for a unit that got a bad flash). An older version is refused.
@@ -343,6 +343,24 @@ Version rules: a newer version is offered normally. If the version number is the
 Both kinds of console: the button layout is part of the firmware, so a console copies its sender's layout. Update between consoles built the same way round (or from a console with the matching `.bin`), or the buttons come out mirrored until you flash the right one.
 
 Safety checks: the image has to fit in the free update space, has to start with a real firmware header, and has to match its hash. The receiver keeps its own flash settings (bytes 2 and 3 of the header) in case the two units have different chips. If anything fails, the link drops, or the sender walks away, the update is thrown away and the old firmware keeps running.
+
+### If an update fails
+A failed update never changes the receiver: the old firmware keeps running. The failure screen says why, and when a transfer stalls it also shows how far it got, in the line just above `UP: OK`. Press **Up** to leave it.
+
+| Screen | Where | What it means |
+|---|---|---|
+| `TRANSFER STALLED` with `tx12 ack3 lost9` | Sender | Nothing moved for 10 seconds. `tx` is how many chunk packets it sent (repeats included), `ack` how many acknowledgements came back, `lost` how many packets the radio said the other console did not get. `ack0` with a high `lost` means the receiver is not hearing the sender; `ack0` with `lost0` means the sender's packets seem to be delivered but nothing answers |
+| `TRANSFER STALLED` with `got 40 bad 0 at 38` | Receiver | `got` is how many chunk packets arrived, `bad` how many of them were not what the offer described, and `at` is the chunk it has written up to. `got0` means nothing reached it |
+| `CANNOT START` with `updater error 2` | Receiver | The updater refused to open space for the image: usually not enough free update space, or a flash size set wrongly. The number is the updater's own error code |
+| `UPDATE FAILED`, `Writing the image failed.`, with `chunk 12, error 3` | Receiver | Writing to the flash chip failed at that chunk |
+| `UPDATE FAILED`, `did not match its checksum` | Both | The image arrived damaged. Try again, closer together |
+| `REFUSED` | Sender | The receiver already has a newer version, has no room for the image, or is busy |
+| `DENIED`, `CANCELLED` | Sender | The receiver pressed Down, or you cancelled |
+| `NO ANSWER` | Sender | The receiver did not press Up within 40 seconds |
+| `CONNECTION LOST`, `OTHER CONSOLE LEFT` | Either | The link dropped or the other console left test mode. Keep them within a few meters |
+| `NO CONFIRMATION` | Sender | Everything was sent but no result came back; check the receiver, it may have installed and restarted already |
+
+If an update still fails and you cannot tell why, build both consoles with `UPDATE_DEBUG` set to 1 (change `#define UPDATE_DEBUG 0` in `GameSystem/config.h`, or pass `-DUPDATE_DEBUG=1` to the compiler), open the serial monitor on each at 115200 baud, and try again. The update and the link then log every step: the offer, the accept, the first chunks, a line every 100 chunks, every dropped packet and why (wrong tag, wrong size, repeated sequence number), and any radio or updater error. A crash prints its stack trace there too. It is off in normal builds.
 
 ### What the hash looks like
 The full SHA-256 is 64 hex characters, for example:
@@ -385,7 +403,7 @@ In the emulator, add `--firmware file.bin` to load a real image to send, `--upda
 ### How the firmware is laid out
 - `gamemanager` runs the menu, the settings screens, the result screens, the tour and the games. Every game is a class that implements the `Game` interface in `game.h`.
 - `display`, `input`, `ui`, `fx` and `frame` are the shared screen, button (layout and debouncing), effect and frame timing helpers.
-- `gamelink`, `lobby` and `crypto` are the two-console link (ESP-NOW with SHA-256 based pairing and encryption) and the shared host and join screens.
+- `gamelink`, `lobby` and `crypto` are the two-console link (ESP-NOW with SHA-256 based pairing and encryption) and the shared host and join screens. `GameLink::poll()` ignores a call made while it is already running, so a packet handler can wait for the radio (by calling `yield()` and `poll()`) without handling the next packet from inside itself and piling up stack.
 - `highscore` and `settings` handle the saved data, and `savesync` is the Wi-Fi backup page.
 - `fwupdate` is the console-to-console firmware update.
 - `videoplayer` and `pbvcodec` are the video player and its file format; the player stores clips in the flash file system (LittleFS).
@@ -412,6 +430,7 @@ Check [tools/README.md](tools/README.md) for the keys, replay files, and how to 
 - **Upload fails:** check the board and port, and make sure the USB cable can carry data and not just power.
 - **Two consoles can't find each other:** both need the new firmware and the same `LINK_SECRET`. Keep them within a few meters, and have the host pick **HOST GAME** first.
 - **The tour shows up every time:** it only stops once you acknowledge it (see First boot). If your scores and settings also don't survive a restart, reflash and open an issue.
+- **A console-to-console update sticks at 0% and the receiver restarts with its old firmware:** Firmware from before this fix crashed the receiver a moment after the transfer started (the update packets were handled from inside each other until the stack ran out). A console running that older firmware cannot be updated over the air, so flash it once by cable; after that it can be. See [If an update fails](#if-an-update-fails) for what the failure screens mean.
 - **Serial output:** 115200 baud. Set `DEBUG_SERIAL` to 1 in `config.h` for detailed logs. It's off in normal builds because it slows things down and prints the backup page's Wi-Fi password.
 
 ## License

@@ -142,6 +142,17 @@ enum GameState {
   #define LOG(...) ((void)0)
 #endif
 
+// Update logging over USB serial (115200 baud): the console-to-console firmware update says what it
+// is doing and where packets get dropped. Off by default; build with -DUPDATE_DEBUG=1 to see it.
+#ifndef UPDATE_DEBUG
+  #define UPDATE_DEBUG 0
+#endif
+#if UPDATE_DEBUG
+  #define ULOG(...) Serial.printf(__VA_ARGS__)
+#else
+  #define ULOG(...) ((void)0)
+#endif
+
 // Global display object
 extern Adafruit_SSD1306 display;
 

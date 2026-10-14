@@ -75,6 +75,13 @@ private:
   unsigned long lastActivity = 0, offerSentAt = 0, lastProgressAt = 0;
   bool allAcked = false;
 
+  // What happened, shown on the failure screens so a failed update says where it stopped
+  uint16_t dbgSent = 0;               // sender: chunk packets sent (repeats included)
+  uint16_t dbgAcks = 0;               // sender: acknowledgements that arrived
+  uint16_t dbgLost = 0;               // sender: packets the radio said the other console did not get
+  uint16_t dbgChunksRx = 0;           // receiver: chunk packets that arrived
+  uint16_t dbgChunksBad = 0;          // receiver: ... that were not what the offer described
+
   // receiver
   uint16_t rxBase = 0;                // the next chunk to be written
   uint8_t rxBuf[FW_WINDOW][FW_CHUNK];

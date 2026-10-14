@@ -45,6 +45,7 @@ void FirmwareUpdate::begin() {
   ownVersion[sizeof(ownVersion) - 1] = 0;
   ownVersionNum = OS_VERSION_NUM;
   ownSize = ESP.getSketchSize();
+  ULOG("update: begin, own v%u, sketch %lu bytes, free sketch space %lu, flash %lu\n", ownVersionNum, (unsigned long)ownSize, (unsigned long)ESP.getFreeSketchSpace(), (unsigned long)ESP.getFlashChipSize());
 
   lobby.begin(LINK_TAG_UPDATE, "FIRMWARE UPDATE");
   lobby.setWording("RECEIVE", "SEND", "RECEIVING", "Waiting for a sender", "FIND CONSOLE", "wants to send firmware");
@@ -145,8 +146,14 @@ bool FirmwareUpdate::update() {
         }
         if (phase != PH_RX_RECV) break;
         if (rxSinceAck) sendAck();   // whatever arrived in this slice
-        if (since(lastActivity) > STALL_MS) fail("TRANSFER STALLED", "Nothing was changed.", "The old firmware stays.");
-        else if (since(lastAck) > 150 && rxSinceAck) sendAck();
+        if (since(lastActivity) > STALL_MS) {
+          char d[24];
+          snprintf(d, sizeof(d), "got %u bad %u at %u", dbgChunksRx, dbgChunksBad, rxBase);
+          ULOG("update: receiver stalled (%s)\n", d);
+          fail("TRANSFER STALLED", "Nothing was changed.", d);
+        } else if (since(lastAck) > 150 && rxSinceAck) {
+          sendAck();
+        }
       } else if (phase == PH_RX_DONE) {
         // the sender may have missed the result: repeat it until we restart
         if (since(lastResultAt) > 300) { sendControl(M_RESULT, R_SUCCESS); lastResultAt = millis(); }
@@ -192,6 +199,7 @@ void FirmwareUpdate::updatePrepare() {
   }
   if (hashPos >= imageSize) {
     hasher.finish(imageSha);
+    ULOG("update: image hashed (%lu bytes, %u chunks), offering it\n", (unsigned long)imageSize, chunks);
     base = 0;
     for (int i = 0; i < FW_WINDOW; i++) slots[i].index = 0xFFFF;
     allAcked = false;
@@ -212,7 +220,8 @@ void FirmwareUpdate::sendOffer() {
   writeLe32(m + 11, imageSize);
   memcpy(m + 15, imageSha, 32);
   while (!gameLink.bulkReady()) { gameLink.poll(); yield(); }
-  gameLink.sendBulk(m, sizeof(m));
+  bool sent = gameLink.sendBulk(m, sizeof(m));
+  ULOG("update: offer sent (%d)\n", sent);
 }
 
 FirmwareUpdate::Slot& FirmwareUpdate::slotFor(uint16_t index) {
@@ -234,13 +243,15 @@ void FirmwareUpdate::sendChunk(uint16_t index) {
   uint32_t offset = (uint32_t)index * FW_CHUNK;
   uint32_t n = imageSize - offset < FW_CHUNK ? imageSize - offset : FW_CHUNK;
   ESP.flashRead(offset, m + 3, n);
-  gameLink.sendBulk(m, 3 + n);
+  bool sent = gameLink.sendBulk(m, 3 + n);
   lastSentIndex = index;
+  dbgSent++;
+  if (!sent || dbgSent <= 5 || dbgSent % 100 == 0) ULOG("update: chunk %u sent=%d (packets %u, acks %u, lost %u, base %u)\n", index, sent, dbgSent, dbgAcks, dbgLost, base);
 }
 
 void FirmwareUpdate::updateSending(unsigned long now) {
   // A packet the other console did not acknowledge is sent again at once
-  if (gameLink.bulkFailed() && lastSentIndex >= 0) slotFor(lastSentIndex).sentAt = 0;
+  if (gameLink.bulkFailed() && lastSentIndex >= 0) { slotFor(lastSentIndex).sentAt = 0; dbgLost++; }
 
   if (!allAcked) {
     // Keep the radio busy for a few milliseconds per frame, within the window
@@ -276,7 +287,12 @@ void FirmwareUpdate::updateSending(unsigned long now) {
 
   if (since(lastProgressAt) > STALL_MS) {
     if (allAcked) fail("NO CONFIRMATION", "Everything was sent but", "no result came back.");
-    else fail("TRANSFER STALLED", "The other console", "stopped answering.");
+    else {
+      char d[24];
+      snprintf(d, sizeof(d), "tx%u ack%u lost%u", dbgSent, dbgAcks, dbgLost);
+      ULOG("update: stalled at chunk %u of %u (%s)\n", base, chunks, d);
+      fail("TRANSFER STALLED", "The other console stopped", d);
+    }
   }
 }
 
@@ -287,6 +303,8 @@ void FirmwareUpdate::handleSenderMessage(const uint8_t* m, uint8_t n) {
   switch (m[0]) {
     case M_ACCEPT:
       if (phase == PH_TX_OFFER) {
+        dbgSent = dbgAcks = dbgLost = 0;
+        ULOG("update: the other console accepted\n");
         phase = PH_TX_SEND;
         lastProgressAt = lastActivity = now;
         base = 0;
@@ -306,6 +324,8 @@ void FirmwareUpdate::handleSenderMessage(const uint8_t* m, uint8_t n) {
 
     case M_ACK:
       if (phase == PH_TX_SEND && n >= 7) {
+        dbgAcks++;
+        if (dbgAcks <= 5 || dbgAcks % 50 == 0) ULOG("update: ack %u, base %u\n", dbgAcks, m[1] | (uint16_t)m[2] << 8);
         uint16_t ackBase = m[1] | (uint16_t)m[2] << 8;
         uint32_t bitmap = readLe32(m + 3);
         if (ackBase > base) { base = ackBase; lastProgressAt = now; }
@@ -359,6 +379,7 @@ void FirmwareUpdate::receiveOffer(const uint8_t* m, uint8_t n) {
   imageSize = readLe32(m + 11);
   memcpy(imageSha, m + 15, 32);
   chunks = (imageSize + FW_CHUNK - 1) / FW_CHUNK;
+  ULOG("update: offer received, v%u, %lu bytes, %u chunks\n", offerVersionNum, (unsigned long)imageSize, chunks);
 
   if (offerVersionNum < ownVersionNum) {
     denyOffer(R_OLDER, "REFUSED", "That is an older version.");
@@ -384,8 +405,13 @@ void FirmwareUpdate::acceptOffer() {
   // This console's own flash settings (mode, size, speed) go into the new image
   ESP.flashRead(0, ownHeader, 4);
 
-  if (!Update.begin(imageSize)) {
-    denyOffer(R_NO_SPACE, "CANNOT START", "The update could not begin.");
+  dbgChunksRx = dbgChunksBad = 0;
+  bool began = Update.begin(imageSize);
+  ULOG("update: Update.begin(%lu) = %d, error %u, free heap %lu\n", (unsigned long)imageSize, began, (unsigned)Update.getError(), (unsigned long)ESP.getFreeHeap());
+  if (!began) {
+    char d[24];
+    snprintf(d, sizeof(d), "updater error %u", (unsigned)Update.getError());
+    denyOffer(R_NO_SPACE, "CANNOT START", d);
     return;
   }
   updateOpen = true;
@@ -402,11 +428,13 @@ void FirmwareUpdate::receiveChunk(const uint8_t* m, uint8_t n) {
   if (n < 4) return;
   uint16_t index = m[1] | (uint16_t)m[2] << 8;
   uint8_t len = n - 3;
-  lastActivity = millis();
+  dbgChunksRx++;
+  if (dbgChunksRx <= 5 || dbgChunksRx % 100 == 0) ULOG("update: chunk packet %u (index %u, %u bytes, written %u, bad %u)\n", dbgChunksRx, index, len, rxBase, dbgChunksBad);
 
   uint32_t expected = (uint32_t)index * FW_CHUNK < imageSize ? imageSize - (uint32_t)index * FW_CHUNK : 0;
   if (expected > FW_CHUNK) expected = FW_CHUNK;
-  if (index >= chunks || len != expected) return;   // not what the offer described
+  if (index >= chunks || len != expected) { dbgChunksBad++; if (dbgChunksBad <= 5) ULOG("update: chunk %u refused: %u bytes, expected %lu\n", index, len, (unsigned long)expected); return; }   // not what the offer described
+  lastActivity = millis();
 
   if (index < rxBase) { sendAck(); return; }          // a repeat of something already written
   if (index >= rxBase + FW_WINDOW) return;            // too far ahead: the sender will repeat it
@@ -443,7 +471,10 @@ void FirmwareUpdate::drainChunks() {
       lastChunkLen = len;
     } else if (Update.write(data, len) != len) {
       sendControl(M_RESULT, R_WRITE);
-      fail("UPDATE FAILED", "Writing the image failed.", "The old firmware stays.");
+      char d[24];
+      snprintf(d, sizeof(d), "chunk %u, error %u", rxBase, (unsigned)Update.getError());
+      ULOG("update: Update.write failed at chunk %u, error %u\n", rxBase, (unsigned)Update.getError());
+      fail("UPDATE FAILED", "Writing the image failed.", d);
       return;
     }
     rxHave[slot] = false;
@@ -471,6 +502,7 @@ void FirmwareUpdate::sendAck() {
 
 // Everything arrived: check the whole image, and only then install
 void FirmwareUpdate::finishReceive() {
+  ULOG("update: all %u chunks received, checking the hash\n", chunks);
   uint8_t sha[32];
   rxHasher.finish(sha);
   if (memcmp(sha, imageSha, 32) != 0) {
