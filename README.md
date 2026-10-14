@@ -124,7 +124,7 @@ The full step by step build guide with photos is in **[Instructions.md](Instruct
 | Button Left | D4 (GPIO2) | Input, other side to ground |
 | Button Right | D5 (GPIO14) | Input, other side to ground |
 
-Built your board upside down, so every button is in the opposite spot? No need to rewire. Set `FLIPPED_BUTTONS` to `1` in `GameSystem/config.h` and upload again: Up and Down swap pins, and so do Left and Right. It is `0` (the wiring above) by default. If SDA and SCL are swapped, the firmware notices and uses them the other way round.
+Built your board upside down, so every button is in the opposite spot? No need to rewire. Flash the `-flipped` `.bin` from the Releases page, or set `FLIPPED_BUTTONS` to `1` in `GameSystem/config.h` and upload again: Up and Down swap pins, and so do Left and Right. It is `0` (the wiring above) by default. If SDA and SCL are swapped, the firmware notices and uses them the other way round.
 
 ### Case
 The 3D printed case is the original author's design: [Tiny Retro Arcade on MakerWorld](https://makerworld.com/en/models/1526306-tiny-retro-arcade-8-games). It has cutouts for the display and buttons, a USB port, and a snap-fit lid with screws.
@@ -144,6 +144,8 @@ No IDE? Every release on the [Releases](https://github.com/Simplyph0/PixelBit/re
 ```bash
 esptool.py --port /dev/ttyUSB0 write_flash 0x0 PixelBit-v4.3.bin
 ```
+
+Each release has two files: `PixelBit-<version>.bin` for a board wired as above, and `PixelBit-<version>-flipped.bin` for one built upside down (every button in the opposite place). They are the same firmware with `FLIPPED_BUTTONS` set to 0 and 1.
 
 The release builds use the `LINK_SECRET` that is in this repo, so they can play and update each other but anyone else's release build can join them too.
 
@@ -222,7 +224,7 @@ Videos are `.pbv` files, made on a computer with [`tools/video/pbv.py`](tools/vi
 python3 tools/video/pbv.py movie.mp4 --pixel 2 --fps 12
 ```
 
-That writes `movie.pbv`. The screen is only 128x64, so you choose how much detail to trade for how easy it is to see with **`--pixel`**:
+That writes `movie.pbv`. GIFs work too (and animated WebP and APNG): `python3 tools/video/pbv.py animation.gif --pixel 2`. Transparent parts of a GIF show as black, which is "off" on the screen; `--background white` shows them white instead. The screen is only 128x64, so you choose how much detail to trade for how easy it is to see with **`--pixel`**:
 
 | `--pixel` | Video size | Good for |
 |---|---|---|
@@ -231,7 +233,7 @@ That writes `movie.pbv`. The screen is only 128x64, so you choose how much detai
 | 3 | 42x21 | Chunky, small files |
 | 4 | 32x16 | The chunkiest and tiniest: clear from across a desk |
 
-Other options: `--fps` (1 to 30, default 15, and the console shows about 20 at most), `--dither bayer|threshold|floyd` (how greys become black and white: `threshold` keeps hard edges and suits line art, `floyd` is finest), `--threshold`, `--contrast`, `--brightness`, `--invert`, `--fit letterbox|crop|stretch`, `--start` and `--duration`. `python3 tools/video/pbv.py --help` has all of them, and `--demo` makes a test pattern if you have no video at hand. The converter prints the size and warns if a clip will not fit: a console has about 1.9 MB of room for videos, and keeps up to 16.
+Other options: `--fps` (1 to 30, default 15, and the console shows about 20 at most), `--dither bayer|threshold|floyd` (how greys become black and white: `threshold` keeps hard edges and suits line art, `floyd` is finest), `--threshold`, `--contrast`, `--brightness`, `--invert`, `--background black|white` (for transparent GIFs), `--fit letterbox|crop|stretch`, `--start` and `--duration`. `python3 tools/video/pbv.py --help` has all of them, and `--demo` makes a test pattern if you have no video at hand. The converter prints the size and warns if a clip will not fit: a console has about 1.9 MB of room for videos, and keeps up to 16.
 
 ### Putting it on the console
 1. On the console open **VIDEOS**, go to **+ UPLOAD VIDEOS** and press **Up**. It starts its own Wi-Fi network and shows the name and a random password (new every time).
@@ -337,6 +339,8 @@ What happens:
 5. The receiver hashes what it got and only installs it if the hash matches. Then it restarts.
 
 Version rules: a newer version is offered normally. If the version number is the same, the receiver is told "Same version number as this build" and can still install it (handy for a unit that got a bad flash). An older version is refused.
+
+Both kinds of console: the button layout is part of the firmware, so a console copies its sender's layout. Update between consoles built the same way round (or from a console with the matching `.bin`), or the buttons come out mirrored until you flash the right one.
 
 Safety checks: the image has to fit in the free update space, has to start with a real firmware header, and has to match its hash. The receiver keeps its own flash settings (bytes 2 and 3 of the header) in case the two units have different chips. If anything fails, the link drops, or the sender walks away, the update is thrown away and the old firmware keeps running.
 

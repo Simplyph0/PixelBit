@@ -11,8 +11,11 @@
 // Set FLIPPED_BUTTONS to 1 when the perfboard is turned over (rotated 180
 // degrees): every button is then in the opposite position, so UP and DOWN swap
 // pins and LEFT and RIGHT swap pins. This is fixed when the firmware is built:
-// change it and upload again to switch.
-#define FLIPPED_BUTTONS 0
+// change it and upload again to switch. The release builds on GitHub also include a
+// second .bin made with 1, by passing -DFLIPPED_BUTTONS=1 to the compiler.
+#ifndef FLIPPED_BUTTONS
+  #define FLIPPED_BUTTONS 0
+#endif
 
 #if FLIPPED_BUTTONS
   #define PIN_BUTTON_UP 13

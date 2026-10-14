@@ -2,6 +2,8 @@ name: Build firmware
 
 # Every push to main that changes the firmware is tested, built and published as
 # a release (vX.Y-build.N) whose notes list the commits since the last release.
+# Every release has two files: the firmware, and the same firmware with FLIPPED_BUTTONS set
+# to 1 (PixelBit-<release>-flipped.bin) for a board built upside down.
 # Pushing a tag like v4.2 publishes that version instead, with the tag's own
 # message as the notes; a main push whose commit carries such a tag leaves the
 # release to the tag.
@@ -98,6 +100,13 @@ jobs:
         # videos' file system sits in the same place whatever the core's default is
         run: arduino-cli compile --fqbn esp8266:esp8266:d1_mini:eesz=4M2M --output-dir build GameSystem
 
+      - name: Compile the flipped-buttons version
+        # The same firmware with FLIPPED_BUTTONS set to 1 (config.h lets the compiler override it)
+        run: >-
+          arduino-cli compile --fqbn esp8266:esp8266:d1_mini:eesz=4M2M
+          --build-property "compiler.cpp.extra_flags=-DFLIPPED_BUTTONS=1"
+          --build-path /tmp/pixelbit-flipped --output-dir build-flipped GameSystem
+
       - name: Work out the release
         id: rel
         run: |
@@ -116,10 +125,12 @@ jobs:
           echo "tag=$tag" >> "$GITHUB_OUTPUT"
           echo "publish=$publish" >> "$GITHUB_OUTPUT"
 
-      - name: Name the file and make a checksum
+      - name: Name the files and make checksums
         run: |
+          tag="${{ steps.rel.outputs.tag }}"
+          cp build-flipped/GameSystem.ino.bin "build/PixelBit-${tag}-flipped.bin"
           cd build
-          mv GameSystem.ino.bin "PixelBit-${{ steps.rel.outputs.tag }}.bin"
+          mv GameSystem.ino.bin "PixelBit-${tag}.bin"
           sha256sum PixelBit-*.bin | tee SHA256SUMS.txt
 
       - uses: actions/upload-artifact@v4
@@ -156,7 +167,10 @@ jobs:
           fi
           {
             echo
-            echo "SHA-256: \`$(cut -d' ' -f1 build/SHA256SUMS.txt)\`"
+            echo "**Which file?** \`PixelBit-${tag}.bin\` is for a board wired as in the README. \`PixelBit-${tag}-flipped.bin\` is the same firmware for a board built upside down, with every button in the opposite place."
+            echo
+            echo "SHA-256:"
+            awk '{print "- `" $2 "`: `" $1 "`"}' build/SHA256SUMS.txt
           } >> notes.md
           cat notes.md
 

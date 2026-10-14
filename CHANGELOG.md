@@ -9,6 +9,9 @@ release notes.
 
 ## Unreleased
 
+- Every release now has a second file, `PixelBit-<version>-flipped.bin`: the same firmware built with `FLIPPED_BUTTONS` set to 1 for a board built upside down. `FLIPPED_BUTTONS` in `config.h` can now be overridden by the compiler (`-DFLIPPED_BUTTONS=1`), and the release notes list a checksum for each file. The button layout is part of the firmware, so a console-to-console update copies the sender's layout: update between consoles built the same way round.
+- `pbv.py` handles GIFs properly: animated GIF, WebP and APNG files convert like any video, and their transparent parts are laid over a solid colour first (black by default, `--background white` to change). Before, ffmpeg dropped the transparency and whatever colour was hidden under a transparent pixel came out as the picture, so a sticker-style GIF could turn into a solid block. Other inputs convert exactly as before.
+
 ## v4.3
 
 - Changed: the button layout is set in `config.h` again (`FLIPPED_BUTTONS`, `0` by default; `1` for a board turned over) and is fixed when the firmware is built. The v4.2 run-time layout is gone: the first-boot tour no longer learns it and test mode has no LAYOUT page. A console that saved a layout under v4.2 now follows `config.h`; the two settings bits it used are ignored.

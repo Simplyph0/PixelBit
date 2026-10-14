@@ -4,6 +4,7 @@ white, no sound, small. Works on Windows, macOS and Linux; needs Python 3 and
 ffmpeg (on the PATH, or `pip install imageio-ffmpeg`). Nothing else.
 
   python3 pbv.py movie.mp4 --pixel 2 --fps 12          # movie.pbv, upload it from the console's video page
+  python3 pbv.py animation.gif --pixel 2               # GIFs work too (also animated WebP and APNG)
   python3 pbv.py movie.mp4 --pixel 2 --embed ../../GameSystem/demo_clip.h   # the clip every console ships with
   python3 pbv.py --demo -o demo.pbv                    # a test pattern, no video needed
 
@@ -24,6 +25,7 @@ import sys
 SCREEN_W, SCREEN_H = 128, 64
 STORAGE_KB = 1900           # about what the console's 2 MB file system holds (after the demo clip and bookkeeping)
 EMBED_WARN_KB = 200         # a clip in the firmware makes every firmware update that much longer
+ALPHA_EXTS = ('.gif', '.apng', '.webp')   # formats that can have transparent pixels
 
 
 # ---- reading the video ------------------------------------------------------
@@ -57,7 +59,16 @@ def video_frames(args, w, h):
     cmd += ['-i', args.input]
     if args.duration:
         cmd += ['-t', str(args.duration)]
-    cmd += ['-an', '-vf', f'fps={args.fps},{fit_filter(args.fit, w, h)}', '-f', 'rawvideo', '-pix_fmt', 'gray', '-']
+    if args.input.lower().endswith(ALPHA_EXTS):
+        # May have transparent pixels, and the colour hidden under one can be anything, so each
+        # frame is laid over a solid background first (black = off on the OLED; --background white to change)
+        graph = (f'color=c={args.background}:s={w}x{h}:r={args.fps}[bg];'
+                 f'[0:v]format=rgba,fps={args.fps},{fit_filter(args.fit, w, h)}[fg];'
+                 f'[bg][fg]overlay=shortest=1:format=auto,format=gray[out]')
+        cmd += ['-an', '-filter_complex', graph, '-map', '[out]']
+    else:
+        cmd += ['-an', '-vf', f'fps={args.fps},{fit_filter(args.fit, w, h)}']
+    cmd += ['-f', 'rawvideo', '-pix_fmt', 'gray', '-']
     proc = subprocess.Popen(cmd, stdout=subprocess.PIPE)
     size = w * h
     try:
@@ -259,6 +270,8 @@ def main():
     ap.add_argument('--contrast', type=float, default=1.0, help='1.0 = unchanged; more = harder contrast')
     ap.add_argument('--brightness', type=float, default=0.0, help='-1.0 to 1.0, 0 = unchanged')
     ap.add_argument('--invert', action='store_true', help='swap black and white')
+    ap.add_argument('--background', choices=['black', 'white'], default='black',
+                    help='what shows through transparent parts of a GIF, animated WebP or APNG (default black, which is "off" on the screen)')
     ap.add_argument('--fit', choices=['letterbox', 'crop', 'stretch'], default='letterbox',
                     help='letterbox = black bars, keep the shape (default); crop = fill the screen; stretch = fill, distorted')
     ap.add_argument('--start', type=float, default=0, help='start this many seconds in')
