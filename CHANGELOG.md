@@ -9,7 +9,7 @@ release notes.
 
 ## Unreleased
 
-Version 4.3 (`OS_VERSION` in `config.h`); this heading becomes `## v4.3` when the tag is made.
+## v4.3
 
 - Changed: the button layout is set in `config.h` again (`FLIPPED_BUTTONS`, `0` by default; `1` for a board turned over) and is fixed when the firmware is built. The v4.2 run-time layout is gone: the first-boot tour no longer learns it and test mode has no LAYOUT page. A console that saved a layout under v4.2 now follows `config.h`; the two settings bits it used are ignored.
 - The video player no longer keeps its two picture buffers (about 2 KB) in RAM while it is not playing; they are taken when a clip opens. The clip list's JSON buffer (about 0.7 KB) moved off permanent RAM too.
