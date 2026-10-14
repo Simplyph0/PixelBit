@@ -50,13 +50,14 @@ pbv_test$(EXE): pbv_test.cpp $(FW)/pbvcodec.cpp
 settings_test$(EXE): settings_test.cpp $(CORE) $(FW)/settings.cpp
 	g++ $(CXX_FLAGS) -o $@ settings_test.cpp $(CORE) $(FW)/settings.cpp $(SYSLIBS)
 
-# firmware update test: three builds with different version numbers talk to each other
+# firmware update test: three builds with different, fixed version numbers talk to each other
+# (fixed, so raising OS_VERSION in config.h never changes what the test means)
 # (then: python3 update_check.py)
 ifneq ($(EXE),)
 update_test: update_test$(EXE)
 endif
 update_test$(EXE): update_test.cpp air.cpp $(CORE) $(LINK) $(FW)/fwupdate.cpp
-	g++ $(CXX_FLAGS) -DUSE_AIR -o update_test$(EXE) update_test.cpp air.cpp $(CORE) $(LINK) $(FW)/fwupdate.cpp $(SYSLIBS)
+	g++ $(CXX_FLAGS) -DUSE_AIR '-DOS_VERSION="v4.2"' -DOS_VERSION_NUM=402 -o update_test$(EXE) update_test.cpp air.cpp $(CORE) $(LINK) $(FW)/fwupdate.cpp $(SYSLIBS)
 	g++ $(CXX_FLAGS) -DUSE_AIR '-DOS_VERSION="v4.3"' -DOS_VERSION_NUM=403 -o update_test_new$(EXE) update_test.cpp air.cpp $(CORE) $(LINK) $(FW)/fwupdate.cpp $(SYSLIBS)
 	g++ $(CXX_FLAGS) -DUSE_AIR '-DOS_VERSION="v4.0"' -DOS_VERSION_NUM=400 -o update_test_old$(EXE) update_test.cpp air.cpp $(CORE) $(LINK) $(FW)/fwupdate.cpp $(SYSLIBS)
 

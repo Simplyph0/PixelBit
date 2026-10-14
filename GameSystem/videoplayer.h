@@ -47,8 +47,11 @@ private:
   // playback
   File file;
   PbvHeader hdr;
-  uint8_t frame[PBV_MAX_FRAME_BYTES];       // the picture being shown, in the OLED's own layout
-  uint8_t payload[PBV_MAX_PAYLOAD];
+  // One block of memory, taken when a clip opens and given back when it closes, so the
+  // player costs no RAM while it is not playing: the picture being shown (in the OLED's
+  // own layout) and the compressed frame being read
+  uint8_t* frame = nullptr;                 // PBV_MAX_FRAME_BYTES
+  uint8_t* payload = nullptr;               // PBV_MAX_PAYLOAD
   uint16_t decoded = 0;                     // frames decoded so far: the shown frame is decoded - 1
   uint16_t frameMs = 66;
   unsigned long nextAt = 0;

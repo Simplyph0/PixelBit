@@ -40,8 +40,8 @@
 // System identity
 #define OS_NAME "PixelOS"
 #ifndef OS_VERSION
-  #define OS_VERSION "v4.2"
-  #define OS_VERSION_NUM 402       // the same version as a number (major * 100 + minor); firmware updates compare this
+  #define OS_VERSION "v4.3"
+  #define OS_VERSION_NUM 403       // the same version as a number (major * 100 + minor); firmware updates compare this
 #endif
 #define SPLASH_MS 2000
 

@@ -94,7 +94,9 @@ jobs:
           arduino-cli lib install "Adafruit GFX Library" "Adafruit SSD1306" "Adafruit BusIO"
 
       - name: Compile
-        run: arduino-cli compile --fqbn esp8266:esp8266:d1_mini --output-dir build GameSystem
+        # eesz=4M2M is "4MB (FS:2MB OTA:~1019KB)", the IDE's default; it is written out so the
+        # videos' file system sits in the same place whatever the core's default is
+        run: arduino-cli compile --fqbn esp8266:esp8266:d1_mini:eesz=4M2M --output-dir build GameSystem
 
       - name: Work out the release
         id: rel

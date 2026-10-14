@@ -1,6 +1,6 @@
 # PixelBit
 
-PixelBit is a handheld arcade you can fit in your pocket. It's an ESP8266, a tiny OLED screen, and four buttons. It has 14 games and a video player, and you can link two of them together and play each other. No wifi or router needed. It runs PixelOS v4.2.
+PixelBit is a handheld arcade you can fit in your pocket. It's an ESP8266, a tiny OLED screen, and four buttons. It has 14 games and a video player, and you can link two of them together and play each other. No wifi or router needed. It runs PixelOS v4.3.
 
 ![PixelBit](images/finished_console.jpg)
 
@@ -137,12 +137,12 @@ The 3D printed case is the original author's design: [Tiny Retro Arcade on Maker
 4. Open `GameSystem/GameSystem.ino`.
 5. **Change `LINK_SECRET` in `GameSystem/config.h` to your own random text.** Two consoles can only play each other if they have the same secret, and it keys the encryption.
 6. Pick the board **LOLIN(WEMOS) D1 R2 & mini**, pick your port, and hit Upload.
-   Leave **Tools > Flash Size** at its default, `4MB (FS:1MB OTA:~1019KB)`: the videos are stored in that 1 MB file system. A board with a smaller flash can still run everything else, but not the video player.
+   Leave **Tools > Flash Size** at its default, `4MB (FS:2MB OTA:~1019KB)`: the videos are stored in that 2 MB file system, and the ready-made `.bin` files are built with it. A board with a smaller flash can still run everything else, but not the video player. Keep the same setting on every console you update from or to: where the file system sits is part of the firmware, so an update that moves it erases the videos.
 
 No IDE? Every release on the [Releases](https://github.com/Simplyph0/PixelBit/releases) page has a ready `.bin`. Flash it with [esptool](https://github.com/espressif/esptool):
 
 ```bash
-esptool.py --port /dev/ttyUSB0 write_flash 0x0 PixelBit-v4.2.bin
+esptool.py --port /dev/ttyUSB0 write_flash 0x0 PixelBit-v4.3.bin
 ```
 
 The release builds use the `LINK_SECRET` that is in this repo, so they can play and update each other but anyone else's release build can join them too.
@@ -231,7 +231,7 @@ That writes `movie.pbv`. The screen is only 128x64, so you choose how much detai
 | 3 | 42x21 | Chunky, small files |
 | 4 | 32x16 | The chunkiest and tiniest: clear from across a desk |
 
-Other options: `--fps` (1 to 30, default 15, and the console shows about 20 at most), `--dither bayer|threshold|floyd` (how greys become black and white: `threshold` keeps hard edges and suits line art, `floyd` is finest), `--threshold`, `--contrast`, `--brightness`, `--invert`, `--fit letterbox|crop|stretch`, `--start` and `--duration`. `python3 tools/video/pbv.py --help` has all of them, and `--demo` makes a test pattern if you have no video at hand. The converter prints the size and warns if a clip will not fit: a console has about 900 KB of room for videos, and keeps up to 16.
+Other options: `--fps` (1 to 30, default 15, and the console shows about 20 at most), `--dither bayer|threshold|floyd` (how greys become black and white: `threshold` keeps hard edges and suits line art, `floyd` is finest), `--threshold`, `--contrast`, `--brightness`, `--invert`, `--fit letterbox|crop|stretch`, `--start` and `--duration`. `python3 tools/video/pbv.py --help` has all of them, and `--demo` makes a test pattern if you have no video at hand. The converter prints the size and warns if a clip will not fit: a console has about 1.9 MB of room for videos, and keeps up to 16.
 
 ### Putting it on the console
 1. On the console open **VIDEOS**, go to **+ UPLOAD VIDEOS** and press **Up**. It starts its own Wi-Fi network and shows the name and a random password (new every time).

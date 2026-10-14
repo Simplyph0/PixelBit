@@ -111,15 +111,16 @@ target_compile_definitions(vs_test PRIVATE USE_AIR)
 
 pb_test(pbv_test ${TESTS}/pbv_test.cpp ${FW}/pbvcodec.cpp)
 
-# the firmware update: three builds with different version numbers talk to each other
-function(pb_update_test name)   # pb_update_test(name [version number])
+# the firmware update: three builds with different version numbers talk to each other.
+# All three have fixed versions, so raising OS_VERSION in config.h never changes what the test means.
+function(pb_update_test name)   # pb_update_test(name version number)
   pb_test(${name} ${TESTS}/update_test.cpp ${TESTS}/air.cpp ${CORE_SRC} ${LINK_SRC} ${FW}/fwupdate.cpp)
   target_compile_definitions(${name} PRIVATE USE_AIR)
   if(ARGC GREATER 1)
     target_compile_definitions(${name} PRIVATE "OS_VERSION=\"${ARGV1}\"" OS_VERSION_NUM=${ARGV2})
   endif()
 endfunction()
-pb_update_test(update_test)
+pb_update_test(update_test v4.2 402)
 pb_update_test(update_test_new v4.3 403)
 pb_update_test(update_test_old v4.0 400)
 

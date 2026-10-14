@@ -176,7 +176,7 @@ static void cleanName(const String& original, char* out) {
 static void handleRoot() { server.send_P(200, "text/html", PAGE); }
 
 static void handleClips() {
-  static char json[40 + MAX_CLIPS * 40];
+  char json[40 + MAX_CLIPS * 40];           // on the stack: it is only needed while this runs
   int n = snprintf(json, sizeof(json), "{\"free\":%lu,\"clips\":[", (unsigned long)freeBytes());
   char name[CLIP_NAME_LEN];
   bool first = true;
@@ -273,6 +273,8 @@ void VideoPlayer::stopUpload() {
 // ---------------------------------------------------------------------------
 void VideoPlayer::closeClip() {
   if (file) file.close();
+  free(frame);
+  frame = payload = nullptr;
 }
 
 bool VideoPlayer::decodeNext() {
@@ -280,30 +282,44 @@ bool VideoPlayer::decodeNext() {
   uint8_t lb[2];
   if (file.read(lb, 2) != 2) return false;
   uint16_t len = lb[0] | (lb[1] << 8);
-  if (len > sizeof(payload) || file.read(payload, len) != len) return false;
+  if (len > PBV_MAX_PAYLOAD || file.read(payload, len) != len) return false;
   if (!pbvDecodeFrame(payload, len, frame, hdr.frameBytes, decoded % hdr.keyEvery != 0)) return false;
   decoded++;
   return true;
 }
 
+// Opens a clip and decodes its first frame. On failure the list shows why.
 bool VideoPlayer::openClip(uint8_t index) {
   closeClip();
   char path[40];
   snprintf(path, sizeof(path), CLIP_DIR "/%s.pbv", names[index]);
   file = LittleFS.open(path, "r");
-  if (!file) return false;
   uint8_t head[PBV_HEADER_SIZE];
-  if (file.read(head, sizeof(head)) != sizeof(head) || !pbvParseHeader(head, sizeof(head), hdr) ||
+  if (!file || file.read(head, sizeof(head)) != sizeof(head) || !pbvParseHeader(head, sizeof(head), hdr) ||
       file.size() < hdr.dataOffset() + 2 || !file.seek(hdr.dataOffset())) {
     closeClip();
+    notice = "BAD OR DAMAGED FILE";
+    noticeUntil = millis() + 2500;
     return false;
   }
-  memset(frame, 0, sizeof(frame));
+  frame = (uint8_t*)calloc(1, PBV_MAX_FRAME_BYTES + PBV_MAX_PAYLOAD);   // zeroed: the first key frame needs nothing before it
+  if (!frame) {
+    closeClip();
+    notice = "OUT OF MEMORY";
+    noticeUntil = millis() + 2500;
+    return false;
+  }
+  payload = frame + PBV_MAX_FRAME_BYTES;
   decoded = 0;
   paused = false;
   barUntil = 0;
   frameMs = 1000 / hdr.fps;
-  if (!decodeNext()) { closeClip(); return false; }
+  if (!decodeNext()) {
+    closeClip();
+    notice = "BAD OR DAMAGED FILE";
+    noticeUntil = millis() + 2500;
+    return false;
+  }
   nextAt = millis() + frameMs;
   mode = MODE_PLAY;
   return true;
@@ -357,7 +373,7 @@ void VideoPlayer::update() {
       else if (buttons.rightPressed) sel = (sel + 1) % total;
       else if (buttons.upPressed) {
         if (sel == clipCount) startUpload();
-        else if (!openClip(sel)) { notice = "BAD OR DAMAGED FILE"; noticeUntil = millis() + 2500; }
+        else openClip(sel);
       } else if (buttons.downPressed) {
         exitRequested = true;
       }
@@ -452,6 +468,7 @@ void VideoPlayer::drawList() {
 // Smaller ones are drawn scale x scale, centred.
 void VideoPlayer::drawVideo() {
   clearDisplay();
+  if (!frame) return;                       // not playing: nothing to show
   uint8_t* buf = display.getBuffer();
   if (hdr.scale == 1 && hdr.width == SCREEN_WIDTH && hdr.height == SCREEN_HEIGHT) {
     memcpy(buf, frame, PBV_MAX_FRAME_BYTES);

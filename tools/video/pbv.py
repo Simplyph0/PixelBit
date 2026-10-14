@@ -22,7 +22,7 @@ import subprocess
 import sys
 
 SCREEN_W, SCREEN_H = 128, 64
-STORAGE_KB = 900            # about what the console's file system holds
+STORAGE_KB = 1900           # about what the console's 2 MB file system holds (after the demo clip and bookkeeping)
 EMBED_WARN_KB = 200         # a clip in the firmware makes every firmware update that much longer
 
 
