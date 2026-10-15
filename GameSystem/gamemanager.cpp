@@ -9,6 +9,7 @@
 #include "tutorial.h"
 #include "welcome.h"
 #include "testmode.h"
+#include "settingsmenu.h"
 
 GameManager gameManager;
 
@@ -16,7 +17,7 @@ GameManager gameManager;
 Game* const GameManager::games[MAX_GAMES] = {
   &snakeGame, &tetrisGame, &flappyGame, &game2048, &breakoutGame, &froggerGame,
   &helicopterGame, &pacmanGame, &pongGame, &invadersGame, &dinoGame, &ticTacToeGame, &rpsGame, &connect4Game,
-  &videoGame
+  &videoGame, &chatMenu, &settingsMenu
 };
 
 void initGameManager() {
@@ -27,12 +28,51 @@ void updateGameManager() {
   gameManager.update();
 }
 
+void GameManager::showIntroNextBoot() {
+  settingFlags &= ~SETTING_TUTORIAL_DONE;
+  saveGameOptions(optionValue, optionsSeen, settingFlags);
+}
+
+void GameManager::factoryReset() {
+  highscoreManager.resetAllHighscores();
+  resetGameOptions();
+  settingFlags = 0;                       // the tour is new again
+  saveGameOptions(optionValue, optionsSeen, settingFlags);
+}
+
+bool GameManager::radioBlocked() {
+  if (currentState != STATE_PLAYING) return false;
+  return (currentGame == GAME_VIDEO && videoGame.radioBusy()) || (currentGame == GAME_SETTINGS && settingsMenu.radioBusy());
+}
+
+// What chat can name in "LET'S PLAY ...": the games that keep a score (the video player, chat and settings do not)
+static const char* playableName(int i) {
+  Game* g = GameManager::gameAt(i);
+  return (g && g->hasScore()) ? g->getName() : nullptr;
+}
+
+void GameManager::resetGameOptions() {
+  for (int g = 0; g < MAX_GAMES; g++) {
+    for (int o = 0; o < MAX_GAME_OPTIONS; o++) {
+      const GameOption* opt = o < games[g]->optionCount() ? games[g]->option(o) : nullptr;
+      optionValue[g][o] = opt ? opt->defaultValue : 0;
+    }
+  }
+  optionsSeen = 0;
+  saveGameOptions(optionValue, optionsSeen, settingFlags);
+}
+
+bool GameManager::keepsScreenOn() {
+  if (currentState == STATE_PLAYING) return games[currentGame]->keepsScreenOn();
+  return currentState == STATE_TEST;
+}
+
 void GameManager::init() {
+  chatSetGameNames(MAX_GAMES, playableName);
   initHighscores();   // starts the EEPROM; without it nothing is read or saved
   currentState = STATE_MENU;
   currentGame = 0;
   menuSelection = 0;
-  syncLastUpTap = 0;
   optIndex = 0;
   for (int g = 0; g < MAX_GAMES; g++) {
     for (int o = 0; o < MAX_GAME_OPTIONS; o++) {
@@ -53,8 +93,6 @@ void GameManager::init() {
   menuRepeatAt = 0;
   newHighscore = false;
   exitHeldSince = 0;
-  secretCount = 0;
-  secretLast = secretArmedUntil = secretHoldSince = 0;
 
   if (settingFlags & SETTING_TUTORIAL_DONE) {
     showMenu();
@@ -125,8 +163,10 @@ void GameManager::update() {
         Game* g = games[currentGame];
         g->update();
         g->draw();
-        fxDraw();
-        updateDisplay();
+        if (!g->skipPresent()) {
+          fxDraw();
+          updateDisplay();
+        }
         if (g->wantsExit()) {
           setState(STATE_MENU);
         } else if (g->isGameOver()) {
@@ -173,15 +213,6 @@ void GameManager::update() {
       handleOptionsInput();
       break;
 
-    case STATE_SYNC:
-      if (syncStopRequested() || !syncUpdate()) {
-        syncEnd();
-        setState(STATE_MENU);   // redraws the menu with any imported scores
-        break;
-      }
-      syncDraw();
-      break;
-
     case STATE_GAME_OVER:
     case STATE_GAME_WON:
       handleResultInput();
@@ -196,7 +227,6 @@ void GameManager::setState(GameState newState) {
   }
   currentState = newState;
   exitHeldSince = 0;
-  syncLastUpTap = 0;
   
   switch (newState) {
     case STATE_MENU:
@@ -288,7 +318,7 @@ void GameManager::showMenu() {
   // Name and best score of the selected game
   drawCenteredText(games[menuSelection]->getName(), 49, 1);
   int best = getGameHighscore(menuSelection);
-  if (!games[menuSelection]->hasScore()) snprintf(text, sizeof(text), "NO SOUND");
+  if (!games[menuSelection]->hasScore()) snprintf(text, sizeof(text), "%s", games[menuSelection]->menuNote() ? games[menuSelection]->menuNote() : "NO SOUND");
   else if (best > 0) snprintf(text, sizeof(text), "BEST %d", best);
   else               snprintf(text, sizeof(text), "NO SCORE");
   drawCenteredText(text, 57, 1);
@@ -333,9 +363,6 @@ void GameManager::handleMenuInput() {
     return;
   }
 
-  bool codeUp = trackSecret();
-  if (currentState != STATE_MENU) return;   // the secret just opened the save link
-
   // LEFT / RIGHT scroll, and keep scrolling while held
   unsigned long now = millis();
   int step = 0;
@@ -348,7 +375,7 @@ void GameManager::handleMenuInput() {
   }
   if (step) moveMenu(step);
 
-  if (buttons.upPressed && !codeUp) {
+  if (buttons.upPressed) {
     openGame(menuSelection);
     return;
   }
@@ -469,17 +496,6 @@ int GameManager::getCurrentScore() {
   return (currentGame >= 0 && currentGame < MAX_GAMES) ? games[currentGame]->getScore() : 0;
 }
 
-// True on the second of two UP taps made close together. The UP press that
-// opened the link is cleared by setState(), so it cannot count as the first tap.
-bool GameManager::syncStopRequested() {
-  if (!buttons.upPressed) return false;
-  unsigned long now = millis();
-  unsigned long gap = now - syncLastUpTap;
-  bool dbl = syncLastUpTap != 0 && gap >= SYNC_DOUBLE_MIN_MS && gap <= SYNC_DOUBLE_MAX_MS;
-  syncLastUpTap = dbl ? 0 : now;
-  return dbl;
-}
-
 // True once UP + DOWN have been held together for EXIT_HOLD_MS.
 bool GameManager::exitComboHeld() {
   if (!(buttons.up && buttons.down)) {
@@ -488,84 +504,6 @@ bool GameManager::exitComboHeld() {
   }
   if (exitHeldSince == 0) exitHeldSince = millis();
   return millis() - exitHeldSince >= EXIT_HOLD_MS;
-}
-
-// Watches menu presses for the hidden save-transfer code (Konami), then for the
-// UP hold that confirms it. Gives no feedback until it succeeds.
-//
-// It looks at a sliding window of the last SECRET_LEN presses, so a wrong press
-// never "locks" it: the code is recognised as soon as the latest presses match.
-// Returns true when the press was an UP that belongs to the code (or to the
-// confirming hold), so the menu must not treat it as "start the selected game".
-bool GameManager::trackSecret() {
-  unsigned long now = millis();
-  bool swallowUp = false;
-
-  int pressed = -1;
-  if (buttons.leftPressed) pressed = 0;
-  else if (buttons.upPressed) pressed = 1;
-  else if (buttons.downPressed) pressed = 2;
-  else if (buttons.rightPressed) pressed = 3;
-
-  // The buttons are not debounced, so a bounce shows up as a second press of the
-  // same button a few ms later. Ignore those or the sequence never matches.
-  static unsigned long lastEdge[4] = {0, 0, 0, 0};
-  if (pressed >= 0) {
-    unsigned long since = now - lastEdge[pressed];
-    lastEdge[pressed] = now;
-    if (since < SECRET_DEBOUNCE_MS) pressed = -1;
-  }
-
-  if (pressed >= 0) {
-    if (now - secretLast > SECRET_STEP_MS) secretCount = 0;
-    secretLast = now;
-
-    if (secretCount == SECRET_LEN) {
-      memmove(secretHist, secretHist + 1, SECRET_LEN - 1);
-      secretCount--;
-    }
-    secretHist[secretCount++] = pressed;
-    LOG("secret: press %d, history length %d\n", pressed, secretCount);
-
-    // Longest prefix of the code that the recent presses now end with
-    int matched = 0;
-    for (int n = secretCount; n > 0 && matched == 0; n--) {
-      bool ok = true;
-      for (int i = 0; i < n; i++) {
-        if (secretHist[secretCount - n + i] != SECRET_SEQ[i]) { ok = false; break; }
-      }
-      if (ok) matched = n;
-    }
-
-    // UP is part of the code but also starts a game, so hold the launch back
-    if (pressed == 1 && matched > 0) swallowUp = true;
-
-    LOG("secret: matched %d of %d\n", matched, SECRET_LEN);
-
-    if (matched == SECRET_LEN) {
-      LOG("secret: code complete, hold UP to open save link\n");
-      secretCount = 0;
-      secretArmedUntil = now + SECRET_ARM_MS;
-      secretHoldSince = 0;
-    }
-  }
-
-  // The UP that begins the confirming hold must not launch a game either
-  if (now < secretArmedUntil && buttons.upPressed) swallowUp = true;
-
-  if (now < secretArmedUntil && buttons.up) {
-    if (secretHoldSince == 0) secretHoldSince = now;
-    if (now - secretHoldSince >= SECRET_HOLD_MS) {
-      secretArmedUntil = 0;
-      secretHoldSince = 0;
-      syncBegin();
-      setState(STATE_SYNC);
-    }
-  } else {
-    secretHoldSince = 0;
-  }
-
-  return swallowUp;
 }
 
 // One results screen for both outcomes; only the title and restart label differ.

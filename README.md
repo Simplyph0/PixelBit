@@ -1,6 +1,6 @@
 # PixelBit
 
-PixelBit is a handheld arcade you can fit in your pocket. It's an ESP8266, a tiny OLED screen, and four buttons. It has 14 games and a video player, and you can link two of them together and play each other. No wifi or router needed. It runs PixelOS v4.3.
+PixelBit is a handheld arcade you can fit in your pocket. It's an ESP8266, a tiny OLED screen, and four buttons. It has 14 games, a video player, chat between consoles and a settings menu, and you can link two of them together and play each other. No wifi or router needed. It runs PixelOS v4.4.
 
 ![PixelBit](images/finished_console.jpg)
 
@@ -24,6 +24,7 @@ PixelBit is a handheld arcade you can fit in your pocket. It's an ESP8266, a tin
 - [Using the console](#using-the-console)
 - [Videos](#videos)
 - [Playing a friend](#playing-a-friend)
+- [Chat](#chat)
 - [Saved data](#saved-data)
 - [Manufacturing test mode](#manufacturing-test-mode)
 - [Console-to-console firmware update](#console-to-console-firmware-update)
@@ -81,11 +82,13 @@ PixelBit is a handheld arcade you can fit in your pocket. It's an ESP8266, a tin
 
 - Settings for each game (difficulty, mode, board size, etc) that get remembered between power-ups
 - Two-console play with host and join, short unit IDs, the host can accept or deny, and encrypted packets
-- High scores that actually save, with a Wi-Fi backup page to download and restore them
+- High scores that actually save, with a Wi-Fi page (from SETTINGS) to download and restore them and to name your friends' consoles
 - An animated menu with an icon and best score for every game
 - A welcome animation and a short tour on the first boot
 - Little screen effects like score pops and shutter wipes
 - A manufacturing test mode for checking new units, see [Manufacturing test mode](#manufacturing-test-mode)
+- Chat between consoles: ready-made messages ("Let's play Pong", "Good game!") over ESP-NOW with a notification blip on top of whatever you are doing, see [Chat](#chat)
+- A settings menu on the console: brightness, screen-off timer, chat on/off, Wi-Fi page, firmware update, resets, intro and about, see [Settings](#settings)
 - Console-to-console firmware updates over ESP-NOW, no cable or PC needed, see [Console-to-console firmware update](#console-to-console-firmware-update)
 - Board built upside down? One setting (`FLIPPED_BUTTONS`) swaps the buttons, and swapped display pins are found on their own
 - A video player: black and white clips, no sound, uploaded over Wi-Fi, made with a converter you can set for more detail or easier viewing, see [Videos](#videos)
@@ -142,8 +145,10 @@ The 3D printed case is the original author's design: [Tiny Retro Arcade on Maker
 No IDE? Every release on the [Releases](https://github.com/Simplyph0/PixelBit/releases) page has a ready `.bin`. Flash it with [esptool](https://github.com/espressif/esptool):
 
 ```bash
-esptool.py --port /dev/ttyUSB0 write_flash 0x0 PixelBit-v4.3.bin
+esptool.py --port /dev/ttyUSB0 write_flash 0x0 PixelBit-v4.4.bin
 ```
+
+Prefer clicking? `tools/flasher/pixelbit_flasher.py` is a small window for Linux, macOS and Windows: pick the `.bin`, it finds the console's port (lowest-numbered first), flashes at 460800 baud and can flash several consoles at once. Chip erase is off by default because it also deletes scores and videos. It needs Python 3 with tkinter and esptool (`pipx install esptool` works). See [tools/](tools/README.md).
 
 Each release has two files: `PixelBit-<version>.bin` for a board wired as above, and `PixelBit-<version>-flipped.bin` for one built upside down (every button in the opposite place). They are the same firmware with `FLIPPED_BUTTONS` set to 0 and 1.
 
@@ -179,6 +184,22 @@ It only counts as done when you acknowledge it. That means you either finish the
 
 The first time you open a game with settings, you get one screen per setting. **Left/Right** changes it, **Up** goes to the next one, **Down** goes back. After that the game starts right away with your last choices.
 
+### Settings
+The last tile of the menu, **SETTINGS**, holds the things that need neither a computer nor typing (those stay on the Wi-Fi page). **Up/Down** scroll, **Right** changes an entry or opens it, **Left** goes back.
+
+| Entry | What it does |
+|---|---|
+| BRIGHTNESS | Five steps, applied at once and kept. HIGH is the usual brightness |
+| SCREEN OFF | The screen turns itself off after 1, 2 or 5 minutes without a button (NEVER by default). Any button wakes it, and that press does nothing else. It stays on while a video plays, during an update and on the Wi-Fi pages |
+| CHAT | `ON` (the default) keeps the radio listening so messages reach you while you play, see [Chat](#chat). `OFF` saves a little power and the console is deaf until you open the CHAT tile |
+| WI-FI PAGE | Starts a private Wi-Fi network and shows its name, a random password and the address on the screen. Join it with a phone or computer for the save backup and the chat contacts, see [Backing up your scores](#backing-up-your-scores). **Left** stops it |
+| UPDATE FIRMWARE | Send or receive firmware between two consoles, see [Console-to-console firmware update](#console-to-console-firmware-update) |
+| RESET SCORES | Erases every high score. Hold **Right** for 2 seconds to confirm |
+| RESET OPTIONS | Every game forgets its remembered settings and asks again. Same confirmation |
+| SHOW INTRO | Makes the welcome animation and the tour play again on the next boot (it clears the "tour seen" flag, nothing else) |
+| FACTORY RESET | Back to a new console: scores, every game's settings, brightness, screen off, chat on, chat contacts and all videos are erased, and the console restarts into the welcome animation. Hold **Right** for 3 seconds to confirm |
+| ABOUT | Version, this console's id (the one chat and the two-console games show), build date, button layout and free memory |
+
 ### In any game
 - Hold **Up + Down** for a second to leave.
 - On the result screen, **Up** goes back to the menu and **Right** plays again.
@@ -208,12 +229,12 @@ The last entry in the menu, **VIDEOS**, plays black and white videos with no sou
 
 | Where | Button | What it does |
 |---|---|---|
-| Clip list | Left / Right | Pick a clip |
-| Clip list | Up | Play it (the last entry, **+ UPLOAD VIDEOS**, opens the upload page) |
-| Clip list | Down | Leave the player |
+| Clip list | Up / Down | Scroll through the clips |
+| Clip list | Right | Play it (the last entry, **+ UPLOAD VIDEOS**, opens the upload page) |
+| Clip list | Left | Leave the player |
 | Playing | Up | Pause and resume |
 | Playing | Left / Right | Jump back or forward 5 seconds |
-| Playing | Down | Back to the clip list (Down again leaves, like in every game) |
+| Playing | Down | Back to the clip list |
 
 There are no loop or speed settings. When a clip ends you are back at the list.
 
@@ -236,10 +257,10 @@ That writes `movie.pbv`. GIFs work too (and animated WebP and APNG): `python3 to
 Other options: `--fps` (1 to 30, default 15, and the console shows about 20 at most), `--dither bayer|threshold|floyd` (how greys become black and white: `threshold` keeps hard edges and suits line art, `floyd` is finest), `--threshold`, `--contrast`, `--brightness`, `--invert`, `--background black|white` (for transparent GIFs), `--fit letterbox|crop|stretch`, `--start` and `--duration`. `python3 tools/video/pbv.py --help` has all of them, and `--demo` makes a test pattern if you have no video at hand. The converter prints the size and warns if a clip will not fit: a console has about 1.9 MB of room for videos, and keeps up to 16.
 
 ### Putting it on the console
-1. On the console open **VIDEOS**, go to **+ UPLOAD VIDEOS** and press **Up**. It starts its own Wi-Fi network and shows the name and a random password (new every time).
+1. On the console open **VIDEOS**, go to **+ UPLOAD VIDEOS** and press **Right**. It starts its own Wi-Fi network and shows the name and a random password (new every time).
 2. Join it with your phone or computer and open `http://192.168.4.1`.
 3. Pick the `.pbv` file and press **Upload**. The console screen freezes until the upload is done. The same page lists your clips and deletes them.
-4. Press **Down** on the console to stop the upload page.
+4. Press **Left** on the console to stop the upload page.
 
 ### The clip in the firmware
 Every console is built with one clip inside the firmware, [`GameSystem/demo_clip.h`](GameSystem/demo_clip.h), so a fresh console (and one updated from another console) has something to play. It is copied into the file system the first time the player opens, and is not copied back after you delete it. The one in this repo is a small test pattern. To ship your own, make a header and rebuild the firmware:
@@ -272,18 +293,31 @@ Pong, Tic-Tac-Toe, Rock Paper Scissors and Connect 4 work between two consoles. 
 
 Both consoles need the same firmware version and the same `LINK_SECRET`. Each console's ID comes from its chip, and the link uses the full 48 bit hardware address underneath, so two consoles can't get mixed up.
 
+## Chat
+
+The **CHAT** tile (after VIDEOS) sends ready-made messages to another console over the same radio as the two-console games: no Wi-Fi network, no router. Both consoles need this firmware.
+
+- **NEW MESSAGE** asks who is in range, then who to send to: **EVERYONE**, a saved contact, or a console that just answered (marked `NEAR`, shown by its 5-letter id). Then pick the message: `LET'S PLAY...` (and the game, taken from the game list, so new games show up by themselves), `BEAT MY SCORE...` (your best score in that game goes along), `WANNA PLAY?`, `REMATCH?`, `GOOD GAME!`, `NICE ONE!`, `YES!`, `NO THANKS`, `MAYBE LATER`, `GIVE ME A MINUTE`, `HELLO!` and `BYE!`.
+- A message to one console says **DELIVERED** when it arrived, or **NO REPLY** if the other console did not answer (out of range, chat OFF, or busy with the Wi-Fi pages). A message to everyone just says **SENT**.
+- **INBOX** keeps the last 8 messages. **Up/Down** moves to the next one, **Right** answers the sender.
+- A round **blip** flashes in the top right corner of the screen, over whatever you are doing (a game, the menu, a video), when a message arrives and stays until you have read it. It is drawn only when the screen is presented, so no game has to know about it.
+- **Names.** Consoles show up as their id (the 5 letters on the CHAT screen, the same ones the two-console games use). Your own id is on the CHAT screen and in SETTINGS > ABOUT. Open SETTINGS > WI-FI PAGE (see [Backing up your scores](#backing-up-your-scores)) and add contacts there: type the id and a name. Names are 1 to 10 characters (letters, digits, space and `- _ . ! ? + *`), which always fits next to the rest of the line. Up to 8 contacts, kept in the EEPROM.
+
+Messages are broadcast and checked with the link secret like the pairing packets, so only consoles built with the same `LINK_SECRET` take part. They are **not encrypted**: anyone with the same firmware in range can read them, which is fine for "Good game!". Turn the radio off completely with **SETTINGS > CHAT > OFF**. Listening keeps the radio on, which costs some battery.
+
 ## Saved data
 
-High scores, each game's settings, and the "tour done" flag live in the ESP8266's emulated EEPROM. Everything has a checksum, so if a block gets damaged it just goes back to defaults. A normal firmware upload (or a console-to-console update) keeps your data. Picking "Erase Flash: All Flash Contents" in the Arduino IDE wipes it.
+High scores, each game's settings, the brightness, screen-off and chat settings, the chat contacts, and the "tour done" flag live in the ESP8266's emulated EEPROM. Everything has a checksum, so if a block gets damaged it just goes back to defaults. A normal firmware upload (or a console-to-console update) keeps your data. Picking "Erase Flash: All Flash Contents" in the Arduino IDE wipes it.
 
 ### Backing up your scores
-There's a hidden Wi-Fi page for this. On the menu press **Left, Left, Right, Right, Up, Up, Left, Right**, then hold **Up** for two seconds. The console starts its own little Wi-Fi network and shows the name and a random password on screen (both are new every time). Join it with your phone and open `http://192.168.4.1`. From there you can:
+Open **SETTINGS > WI-FI PAGE**. The console starts its own little Wi-Fi network and shows the name and a random password on screen (both are new every time). Join it with your phone and open `http://192.168.4.1`. From there you can:
 
 - download your scores as a small text file,
 - paste or upload one to restore it (keep the best of both, or overwrite),
+- keep your **chat contacts** (an id and a name, see [Chat](#chat)),
 - erase every score (you have to type RESET first).
 
-Double-tap **Up** to switch it off again. Only one device can join at a time, and the network is gone once it's off. The save file has a checksum, so a damaged or edited one gets refused.
+Press **Left** on the console to switch it off again. Only one device can join at a time, and the network is gone once it's off. The save file has a checksum, so a damaged or edited one gets refused.
 
 ## Manufacturing test mode
 
@@ -302,7 +336,7 @@ Test mode never marks the tour as acknowledged and saves nothing, so a tested un
 Buttons the wrong way round? Change `FLIPPED_BUTTONS` in `config.h` and upload again.
 
 ### The tests
-Move with **Left/Right** and run a test with **Up**. The list shows OK, FAIL, or -- for each one.
+Scroll with **Up/Down**, run a test with **Right**, and leave test mode with **Left**. The list shows OK, FAIL, or -- for each one.
 
 <table>
 <tr>
@@ -321,14 +355,13 @@ Move with **Left/Right** and run a test with **Up**. The list shows OK, FAIL, or
 | BUTTONS | Shows each button live, and a dot stays once a button has been seen. OK when all four have been pressed. Hold **Up + Down** for a second to leave |
 | STORAGE | Writes four bit patterns to a scratch area and reads them back from the EEPROM buffer and from the flash chip itself. FAIL shows the first bad byte. It doesn't touch scores or settings |
 | RADIO | Starts the radio and scans for other consoles in test mode. **Up** switches between scanning and sending beacons, so two units can find each other (one scans, one beacons). OK once another unit has been seen. Shows the unit's MAC and short ID |
-| UPDATE | Send or receive firmware between two consoles, see [Console-to-console firmware update](#console-to-console-firmware-update) |
 | SYSTEM | Firmware version, ID, firmware fingerprint, chip ID, MAC, real and configured flash size, free memory, uptime, and the last reset reason. If the flash sizes don't match, you probably have the wrong board setting or a fake chip |
 
 The emulator has the same mode (run it without `--no-tutorial`). There the storage test only checks the memory buffer, and the radio test needs two emulators running with `--udp 0` and `--udp 1` to find anyone.
 
 ## Console-to-console firmware update
 
-One console can copy its own firmware to another one over the air (ESP-NOW), so you can update a unit without a cable or a PC. Open test mode on both consoles (hold **Down** on the menu to replay the tour, then **Left three times** and **hold Up**), pick **UPDATE**, then choose **SEND** on one and **RECEIVE** on the other. They pair the same way as the two-console games.
+One console can copy its own firmware to another one over the air (ESP-NOW), so you can update a unit without a cable or a PC. On both consoles open **SETTINGS** (the last tile of the menu) and pick **UPDATE FIRMWARE**, then choose **SEND** on one and **RECEIVE** on the other. They pair the same way as the two-console games.
 
 What happens:
 
@@ -376,12 +409,12 @@ Read this before you use it. This is a hobby feature, not secure updating.
 
 - The firmware is **not signed**. The hash only proves the file arrived in one piece. It does not prove who made it.
 - The pairing secret (`LINK_SECRET` in `config.h`) is in this public repo, so anyone running this code can pair with your console. Radio packets are authenticated per session and numbered so they can't be replayed, but that is not a defence against someone who knows the secret.
-- The only real gate is the consent screen. Someone nearby who also has test mode open and picks SEND could offer your console a malicious image, and if you press Up on it, you installed it. Only accept from a console you are looking at.
+- The only real gate is the consent screen. Someone nearby who opens SETTINGS > UPDATE FIRMWARE on their console and picks SEND could offer your console a malicious image, and if you press Up on it, you installed it. Only accept from a console you are looking at.
 - The 8 character fingerprint is 32 bits. It is fine for "are these the same build", not for telling a good image from a crafted one. Compare the full hash if you care.
 - A power cut in the middle of the final write can still brick a unit. If that happens, reflash over USB.
-- Receiving can only happen from test mode, which needs the secret button combo, but that is obscurity, not security.
+- Any console can open the receive screen from SETTINGS, so anyone holding yours can start it. A receiver only installs after someone presses Up on the consent screen. Turn the whole feature off with `ENABLE_P2P_UPDATE` below if that matters to you.
 
-If you don't want the feature, set `ENABLE_P2P_UPDATE` to `0` in `GameSystem/config.h` and rebuild. The UPDATE item and the code are then left out.
+If you don't want the feature, set `ENABLE_P2P_UPDATE` to `0` in `GameSystem/config.h` and rebuild. The UPDATE FIRMWARE entry and the code are then left out.
 
 In the emulator, add `--firmware file.bin` to load a real image to send, `--update-out file.bin` for where a received image is saved, and `--free-space N` to pretend the update space is smaller.
 
@@ -406,6 +439,8 @@ In the emulator, add `--firmware file.bin` to load a real image to send, `--upda
 - `gamelink`, `lobby` and `crypto` are the two-console link (ESP-NOW with SHA-256 based pairing and encryption) and the shared host and join screens. `GameLink::poll()` ignores a call made while it is already running, so a packet handler can wait for the radio (by calling `yield()` and `poll()`) without handling the next packet from inside itself and piling up stack.
 - `highscore` and `settings` handle the saved data, and `savesync` is the Wi-Fi backup page.
 - `fwupdate` is the console-to-console firmware update.
+- `settingsmenu` is the SETTINGS tile (a `Game` like the others) and `device` keeps its brightness, screen-off and chat settings in the EEPROM.
+- `chat` is the chat protocol, inbox and radio keep-alive, `chatmenu` is the CHAT tile and `contacts` keeps the aliases. `GameLink` carries chat packets in every state; `updateDisplay()` draws the notification blip.
 - `videoplayer` and `pbvcodec` are the video player and its file format; the player stores clips in the flash file system (LittleFS).
 - `tutorial`, `welcome` and `testmode` are the first boot stuff and the manufacturing test.
 

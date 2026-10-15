@@ -105,8 +105,40 @@ void clearDisplay() {
   display.clearDisplay();
 }
 
+static bool blipOn = false;
+static unsigned long attentionUntil = 0;
+
+void setNotifyBlip(bool on) { blipOn = on; }
+void notifyAttention() { attentionUntil = millis() + 4000; }
+
+// The corner is 16 x 16 pixels: columns 112..127, the first two pages of the buffer
+static const int BLIP_X = 120, BLIP_Y = 7;
+
+static void drawBlip() {
+  unsigned long now = millis();
+  bool fast = (long)(attentionUntil - now) > 0;
+  bool solid = fast ? (now / 150) % 2 == 0 : (now / 600) % 3 != 0;   // flashes quickly at first, then pulses
+  display.fillCircle(BLIP_X, BLIP_Y, 7, SSD1306_BLACK);               // clears a ring around the dot
+  if (solid) {
+    display.fillCircle(BLIP_X, BLIP_Y, 5, SSD1306_WHITE);
+    display.fillCircle(BLIP_X, BLIP_Y, 1, SSD1306_BLACK);
+  } else {
+    display.drawCircle(BLIP_X, BLIP_Y, 5, SSD1306_WHITE);
+    display.fillCircle(BLIP_X, BLIP_Y, 2, SSD1306_WHITE);
+  }
+}
+
 void updateDisplay() {
+  if (!blipOn) {
+    display.display();
+    return;
+  }
+  uint8_t* buf = display.getBuffer();
+  uint8_t keep[2][16];
+  for (int page = 0; page < 2; page++) memcpy(keep[page], buf + page * SCREEN_WIDTH + 112, 16);
+  drawBlip();
   display.display();
+  for (int page = 0; page < 2; page++) memcpy(buf + page * SCREEN_WIDTH + 112, keep[page], 16);   // the game's picture is as it was
 }
 
 void drawCenteredText(const char* text, int y, int textSize) {

@@ -43,8 +43,8 @@
 // System identity
 #define OS_NAME "PixelOS"
 #ifndef OS_VERSION
-  #define OS_VERSION "v4.3"
-  #define OS_VERSION_NUM 403       // the same version as a number (major * 100 + minor); firmware updates compare this
+  #define OS_VERSION "v4.4"
+  #define OS_VERSION_NUM 404       // the same version as a number (major * 100 + minor); firmware updates compare this
 #endif
 #define SPLASH_MS 2000
 
@@ -59,7 +59,7 @@
 #define FRAME_IDLE_MS 16
 
 // Game Constants
-#define MAX_GAMES 15
+#define MAX_GAMES 17
 #define BUTTON_DELAY 150
 #define MENU_REPEAT_DELAY_MS 350   // hold LEFT/RIGHT this long before the menu starts scrolling
 #define MENU_REPEAT_MS 110         // then it steps this often
@@ -68,22 +68,8 @@
 #define TOUR_SKIP_MS 1500          // hold any button this long to skip the tour
 #define EXIT_HOLD_MS 1000   // hold UP + DOWN together this long to leave a game
 
-// Hidden save-transfer unlock: on the menu enter the code (each press
-// within SECRET_STEP_MS of the last), then hold UP for SECRET_HOLD_MS before
-// SECRET_ARM_MS runs out. Codes: 0 = LEFT, 1 = UP, 2 = DOWN, 3 = RIGHT.
-// There is no on-screen hint until the link starts.
-#define SECRET_LEN 8
-#define SECRET_STEP_MS 4000
-#define SECRET_DEBOUNCE_MS 60
-#define SECRET_ARM_MS 8000
-#define SECRET_HOLD_MS 2000
-
-// Save link: 0 = visible in Wi-Fi lists, 1 = hidden (must be added by hand).
-// Double-tap UP within these limits to stop it (the minimum rejects bounce).
+// Wi-Fi page (SETTINGS > WI-FI PAGE): 0 = visible in Wi-Fi lists, 1 = hidden (must be added by hand).
 #define SYNC_HIDDEN_SSID 0
-#define SYNC_DOUBLE_MIN_MS 60
-#define SYNC_DOUBLE_MAX_MS 500
-static const uint8_t SECRET_SEQ[SECRET_LEN] = {0, 0, 3, 3, 1, 1, 0, 3};   // L L R R U U L R
 
 #define DIFFICULTY_LEVELS 5
 #define DIFFICULTY_DEFAULT 1   // NORMAL
@@ -105,7 +91,9 @@ enum GameID {
   GAME_TICTACTOE = 11,
   GAME_RPS = 12,
   GAME_CONNECT4 = 13,
-  GAME_VIDEO = 14
+  GAME_VIDEO = 14,
+  GAME_CHAT = 15,
+  GAME_SETTINGS = 16
 };
 
 // Game States
@@ -117,8 +105,7 @@ enum GameState {
   STATE_TUTORIAL,
   STATE_PLAYING,
   STATE_GAME_OVER,
-  STATE_GAME_WON,
-  STATE_SYNC
+  STATE_GAME_WON
 };
 
 // Console-to-console link (versus play). Both consoles must be built with the
@@ -130,6 +117,7 @@ enum GameState {
 #ifndef LINK_SECRET
   #define LINK_SECRET "7f7ed3fcb5cbc3298ac3fccdf3421cfc"
 #endif
+#define LINK_TAG_CHAT 249       // game tag of the radio while only chat has it
 #define LINK_CHANNEL 1          // Wi-Fi channel both consoles use (1 - 13)
 
 // Serial debug logging; set to 1 while developing. Off by default: button and

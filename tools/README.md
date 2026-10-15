@@ -51,6 +51,8 @@ A replay file is plain text, times in milliseconds since the emulator started (t
 
 `ctest -R firmware_update` (or `make update_test` followed by `python3 update_check.py` in `tools/tests`) runs two simulated consoles through the firmware update (newer, same, older, denied, bad hash, no space, sender vanishing, lossy radio) and checks what gets installed.
 
+`ctest -R chat` (or `python3 chat_check.py .` in `tools/tests`) runs two simulated consoles through chat: the ping, a message that is acknowledged, one to everyone, one to a console that is not there, and repeats being dropped, with and without lost packets. To try chat by hand, run two emulators: `./emulator --udp 0 --eeprom a.bin` and `./emulator --udp 1 --eeprom b.bin`.
+
 Run `ctest --test-dir build/tools` (or `make test` in `tools/tests`) to check the game rules, the AIs, the two-console games and that scores, settings and the first-boot flag are really saved and survive a restart. GitHub Actions runs the same tests on Linux, macOS and Windows before every release build (`.github/workflows/build.yml`).
 
 The emulator's keys are always the logical buttons: the arrow you press is the button the game sees, whatever `FLIPPED_BUTTONS` is set to.
@@ -70,3 +72,8 @@ console. `micropython/main.py` is the quick way (flash MicroPython, copy the fil
     python3 video/pbv.py --demo -o demo.pbv
 
 In the emulator the console's flash file system is a folder: `pixelbit-fs` in the current directory, or the one named by the `PB_FS` environment variable. Put a `.pbv` in its `clips/` folder and the VIDEOS entry plays it. The upload web page is not emulated.
+
+## flasher/
+`pixelbit_flasher.py` is a point-and-click firmware flasher for Linux, macOS and Windows (Python 3 with tkinter; it finds esptool on PATH (pipx works) or offers to install it). Choose a `.bin`, and it flashes the lowest-numbered `ttyACM*`/`ttyUSB*` (macOS `cu.usb*`, Windows `COMx`) port at 460800 baud. The port list updates as you plug consoles in; select several to flash them in parallel. "Erase chip first" is off by default (it also deletes scores, settings and videos). "Flash new consoles as they appear" is for batches. A failed run is retried once at 115200.
+
+    python3 tools/flasher/pixelbit_flasher.py

@@ -3,7 +3,7 @@
 #include "input.h"
 #include "gamelink.h"
 #include "highscore.h"
-#include "fwupdate.h"
+#include "fwupdate.h"   // FirmwareUpdate::fingerprint()
 #include <EEPROM.h>
 #include <ESP8266WiFi.h>
 
@@ -12,9 +12,6 @@ TestMode testMode;
 struct TestItem { const char* name; uint8_t page; };   // page 0 = EXIT
 static const TestItem ITEM_LIST[] = {
   {"DISPLAY", 1}, {"BUTTONS", 2}, {"STORAGE", 3}, {"RADIO", 4}, {"SYSTEM", 5},
-#if ENABLE_P2P_UPDATE
-  {"UPDATE", 6},
-#endif
   {"EXIT", 0}
 };
 static const uint8_t ITEMS = sizeof(ITEM_LIST) / sizeof(ITEM_LIST[0]);
@@ -56,11 +53,6 @@ void TestMode::open(Page p) {
       fwPos = 0;
       fwDone = false;
       break;
-    case P_UPDATE:
-#if ENABLE_P2P_UPDATE
-      fwUpdate.begin();
-#endif
-      break;
     case P_RADIO:
       radioStarted = true;
       radioOk = gameLink.begin(250);   // game tag 250: the test beacons
@@ -79,9 +71,6 @@ void TestMode::leavePage() {
     radioStarted = false;
   }
   if (page == P_DISPLAY) display.invertDisplay(false);
-#if ENABLE_P2P_UPDATE
-  if (page == P_UPDATE) fwUpdate.stop();
-#endif
   page = P_LIST;
 }
 
@@ -164,9 +153,10 @@ bool TestMode::update() {
 
   switch (page) {
     case P_LIST:
-      if (buttons.rightPressed || buttons.downPressed) sel = (sel + 1) % ITEMS;
-      else if (buttons.leftPressed) sel = (sel + ITEMS - 1) % ITEMS;
-      else if (buttons.upPressed) {
+      if (buttons.downPressed) sel = (sel + 1) % ITEMS;
+      else if (buttons.upPressed) sel = (sel + ITEMS - 1) % ITEMS;
+      else if (buttons.leftPressed) return true;   // leave test mode
+      else if (buttons.rightPressed) {
         uint8_t p = ITEM_LIST[sel].page;
         if (p == 0) return true;   // EXIT
         open((Page)p);
@@ -215,17 +205,6 @@ bool TestMode::update() {
       updateFingerprint();
       if (buttons.downPressed || buttons.upPressed) leavePage();
       break;
-
-    case P_UPDATE:
-#if ENABLE_P2P_UPDATE
-      if (fwUpdate.update()) {
-        result[sel] = 1;
-        page = P_LIST;    // fwUpdate.stop() has already run
-      }
-#else
-      leavePage();
-#endif
-      break;
   }
   return false;
 }
@@ -259,11 +238,6 @@ static void line(int y, const char* text) {
 }
 
 bool TestMode::draw() {
-  if (page == P_UPDATE) {
-#if ENABLE_P2P_UPDATE
-    return fwUpdate.draw();
-#endif
-  }
   clearDisplay();
   display.setTextSize(1);
   display.setTextColor(SSD1306_WHITE);
@@ -374,9 +348,6 @@ bool TestMode::draw() {
       line(54, "UP:role  DOWN:back");
       break;
     }
-
-    case P_UPDATE:
-      break;
 
     case P_SYSTEM: {
       uint8_t mac[6];

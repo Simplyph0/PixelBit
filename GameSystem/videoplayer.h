@@ -16,9 +16,9 @@
 // the list starts an access point with an upload page. A first-boot copy of the
 // clip built into the firmware (demo_clip.h) is written to the file system once.
 //
-// Buttons. List: LEFT/RIGHT pick, UP plays (or opens the upload page), DOWN
+// Buttons. List: UP/DOWN scroll, RIGHT plays (or opens the upload page), LEFT
 // leaves the player. Playing: UP pauses, LEFT/RIGHT jump back and forward, DOWN
-// goes back to the list. Upload page: DOWN stops it.
+// goes back to the list. Upload page: LEFT stops it.
 class VideoPlayer : public Game {
 public:
   void init() override;
@@ -30,6 +30,8 @@ public:
   bool hasScore() override { return false; }
   bool wantsExit() override { return exitRequested; }
   void stop() override;
+  bool radioBusy() const { return mode == MODE_UPLOAD; }   // the Wi-Fi upload page has the radio
+  bool keepsScreenOn() override { return mode == MODE_PLAY || mode == MODE_UPLOAD; }
 
 private:
   enum Mode : uint8_t { MODE_LIST, MODE_PLAY, MODE_UPLOAD, MODE_ERROR };
@@ -77,5 +79,8 @@ private:
 };
 
 extern VideoPlayer videoGame;
+
+// Deletes every clip (the demo comes back by itself); used by the factory reset
+void videoEraseAll();
 
 #endif

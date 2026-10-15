@@ -8,7 +8,7 @@ GameLink gameLink;
 
 static const uint8_t MAGIC = 0xA7;
 enum PacketType : uint8_t {
-  T_BEACON = 1, T_JOIN_REQ = 2, T_JOIN_OK = 3, T_JOIN_DENY = 4, T_CANCEL = 5, T_SESSION = 8, T_BULK = 9
+  T_BEACON = 1, T_JOIN_REQ = 2, T_JOIN_OK = 3, T_JOIN_DENY = 4, T_CANCEL = 5, T_SESSION = 8, T_BULK = 9, T_CHAT = 10
 };
 enum SessionKind : uint8_t { K_HELLO = 0, K_DATA = 1, K_BYE = 2 };
 
@@ -60,6 +60,7 @@ static void onSent(uint8_t*, uint8_t status) {
 }
 
 static void (*bulkHandler)(const uint8_t*, uint8_t) = nullptr;
+static void (*chatHandler)(const uint8_t*, uint8_t) = nullptr;
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -77,6 +78,28 @@ void linkOwnId(char out[LINK_ID_LEN + 1]) {
   uint32_t chip = ESP.getChipId();
   uint8_t id[3] = {(uint8_t)(chip >> 16), (uint8_t)(chip >> 8), (uint8_t)chip};
   idToText(id, out);
+}
+
+void linkOwnIdBytes(uint8_t out[3]) {
+  uint32_t chip = ESP.getChipId();
+  out[0] = chip >> 16; out[1] = chip >> 8; out[2] = chip;
+}
+
+void linkIdToText(const uint8_t id[3], char out[LINK_ID_LEN + 1]) { idToText(id, out); }
+
+bool linkIdFromText(const char* text, uint8_t id[3]) {
+  if (!text || strlen(text) != LINK_ID_LEN) return false;
+  uint32_t v = 0;
+  for (int i = 0; i < LINK_ID_LEN; i++) {
+    char c = text[i];
+    if (c >= 'a' && c <= 'z') c -= 32;
+    const char* p = strchr(ID_ALPHABET, c);
+    if (!c || !p) return false;
+    v = (v << 5) | (uint32_t)(p - ID_ALPHABET);
+  }
+  if (v >> 24) return false;   // 5 characters hold 25 bits, an id has 24
+  id[0] = v >> 16; id[1] = v >> 8; id[2] = v;
+  return true;
 }
 
 static bool sameBytes(const uint8_t* a, const uint8_t* b, uint8_t n) {
@@ -111,6 +134,7 @@ void GameLink::setState(LinkState s) {
 // Start / stop
 // ---------------------------------------------------------------------------
 bool GameLink::begin(uint8_t gameTag) {
+  if (linkState != LINK_OFF) end();   // the radio may be on for chat: start from a clean slate
   tag = gameTag;
   rxHead = rxTail = 0;
   bulkInFlight = false;
@@ -305,6 +329,14 @@ void GameLink::handleBulk(const uint8_t* mac, const uint8_t* data, uint8_t len) 
 
 void GameLink::setBulkHandler(void (*handler)(const uint8_t*, uint8_t)) { bulkHandler = handler; }
 
+void GameLink::setChatHandler(void (*handler)(const uint8_t*, uint8_t)) { chatHandler = handler; }
+
+bool GameLink::sendChat(const uint8_t* body, uint8_t len) {
+  if (linkState == LINK_OFF || len > 24) return false;
+  sendLobby(BROADCAST, T_CHAT, body, len);
+  return true;
+}
+
 void GameLink::sendBeacon() {
   uint8_t body[4] = {tag, myIdBytes[0], myIdBytes[1], myIdBytes[2]};
   sendLobby(BROADCAST, T_BEACON, body, 4);
@@ -417,6 +449,10 @@ void GameLink::handleLobby(const uint8_t* mac, uint8_t type, const uint8_t* body
   unsigned long now = millis();
 
   switch (type) {
+    case T_CHAT:
+      if (chatHandler) chatHandler(body, n);
+      break;
+
     case T_BEACON:
       if (linkState != LINK_SCANNING || n != 4 || body[0] != tag) return;
       {

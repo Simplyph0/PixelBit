@@ -10,6 +10,9 @@
 #define SSD1306_BLACK 0
 #define SSD1306_INVERSE 2
 #define SSD1306_SWITCHCAPVCC 2
+#define SSD1306_SETCONTRAST 0x81
+#define SSD1306_DISPLAYOFF 0xAE
+#define SSD1306_DISPLAYON 0xAF
 
 void emulatorPresent(const uint8_t fb[64][128], bool inverted);
 
@@ -27,6 +30,7 @@ public:
     emulatorPresent(fb, inverted);
   }
   void invertDisplay(bool i) { inverted = i; }
+  void ssd1306_command(uint8_t) {}   // contrast and power are not emulated
   bool getPixel(int16_t x, int16_t y) { return x >= 0 && y >= 0 && x < 128 && y < 64 && (buffer[(y >> 3) * 128 + x] >> (y & 7) & 1); }
   bool inverted = false;
   void drawPixel(int16_t x, int16_t y, uint16_t c) override {

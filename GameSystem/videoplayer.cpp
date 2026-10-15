@@ -1,4 +1,5 @@
 #include "videoplayer.h"
+#include "chat.h"
 #include "display.h"
 #include "input.h"
 #include <ESP8266WiFi.h>
@@ -52,6 +53,13 @@ static bool mountFs() {
     seedDemo();
   }
   return fsReady;
+}
+
+// Factory reset: every clip goes, and the demo clip is copied in again the next time the player opens
+void videoEraseAll() {
+  if (!fsReady) fsReady = LittleFS.begin();
+  if (fsReady) LittleFS.format();
+  fsReady = false;   // mounted again (and the demo seeded) the next time the player opens
 }
 
 static uint32_t freeBytes() {
@@ -245,6 +253,7 @@ void VideoPlayer::startUpload() {
   randomString(apPass, 8);
   uploadStartedAt = millis();
   upMsg[0] = 0;
+  chatReleaseRadio();   // chat may have the radio open: the access point needs it
   WiFi.mode(WIFI_AP);
   WiFi.softAP(apSsid, apPass, 1 + (ESP.random() % 11), 0, 1);   // WPA2, one device at a time
   if (!routesAdded) {
@@ -369,12 +378,12 @@ void VideoPlayer::update() {
   switch (mode) {
     case MODE_LIST: {
       int total = clipCount + 1;                       // the clips, then the upload page
-      if (buttons.leftPressed) sel = (sel + total - 1) % total;
-      else if (buttons.rightPressed) sel = (sel + 1) % total;
-      else if (buttons.upPressed) {
+      if (buttons.upPressed) sel = (sel + total - 1) % total;
+      else if (buttons.downPressed) sel = (sel + 1) % total;
+      else if (buttons.rightPressed) {
         if (sel == clipCount) startUpload();
         else openClip(sel);
-      } else if (buttons.downPressed) {
+      } else if (buttons.leftPressed) {
         exitRequested = true;
       }
       break;
@@ -406,7 +415,7 @@ void VideoPlayer::update() {
 
     case MODE_UPLOAD:
       server.handleClient();
-      if (buttons.downPressed) {
+      if (buttons.leftPressed) {
         stopUpload();
         loadClips();
         sel = 0;
@@ -415,7 +424,7 @@ void VideoPlayer::update() {
       break;
 
     case MODE_ERROR:
-      if (buttons.downPressed) exitRequested = true;
+      if (buttons.leftPressed) exitRequested = true;
       break;
   }
 }
@@ -461,7 +470,7 @@ void VideoPlayer::drawList() {
 
   if (notice && millis() < noticeUntil) drawCenteredText(notice, 55, 1);
   else if (clipCount == 0) drawCenteredText("NO VIDEOS YET", 55, 1);
-  else drawCenteredText("LR=pick UP=go DN=exit", 55, 1);
+  else drawCenteredText("UD:pick R:play L:exit", 55, 1);
 }
 
 // The frame is stored in the display's own layout, so a full-screen clip is one copy.
@@ -521,7 +530,7 @@ void VideoPlayer::drawUpload() {
   display.setCursor(0, 33);  display.print(F("http://192.168.4.1"));
   display.setCursor(0, 44);
   display.print(WiFi.softAPgetStationNum() > 0 ? F("Device: CONNECTED") : F("Device: not joined"));
-  display.setCursor(0, 55);  display.print(F("DOWN: stop"));
+  display.setCursor(0, 55);  display.print(F("LEFT: stop"));
 }
 
 void VideoPlayer::drawError() {
@@ -530,5 +539,5 @@ void VideoPlayer::drawError() {
   drawCenteredText("STORAGE ERROR", 26, 1);
   drawCenteredText("The file system", 38, 1);
   drawCenteredText("did not start", 47, 1);
-  drawCenteredText("DOWN: back", 57, 1);
+  drawCenteredText("LEFT: back", 57, 1);
 }

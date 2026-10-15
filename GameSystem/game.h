@@ -28,6 +28,12 @@ public:
   // false for something that is not scored (the video player): the menu then shows no "best" line
   virtual bool hasScore() { return true; }
   virtual const char* getName() = 0;
+  // Second line under the name in the menu for a game that has no score (default: "NO SOUND")
+  virtual const char* menuNote() { return nullptr; }
+  // true while the screen must stay on although no button is pressed (a playing video)
+  virtual bool keepsScreenOn() { return false; }
+  // true when draw() left the screen as it was, so the manager can skip the slow display refresh
+  virtual bool skipPresent() { return false; }
 
   // Called when the player leaves the game (menu, exit combo, game over), so a
   // game can release anything it holds, such as the radio or the inverted display.

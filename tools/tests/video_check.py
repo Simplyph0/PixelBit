@@ -63,16 +63,18 @@ with open(replay, 'w') as f:
     # Buttons are held 300 ms and the clock runs only 4x, so a slow machine (a CI
     # runner) cannot have a press and its release fall inside one frame
     f.write('seed 1\n'
-            '600 4\n900 0\n'            # LEFT from the first game: the last one, VIDEOS
-            '1800 shot menu\n'
-            '2100 1\n2400 0\n'          # UP: open it
+            '600 4\n900 0\n'            # LEFT from the first game: the last tile, SETTINGS
+            '1000 4\n1300 0\n'         # LEFT again: CHAT
+            '1400 4\n1700 0\n'         # and again: VIDEOS
+            '2000 shot menu\n'
+            '2300 1\n2600 0\n'          # UP: open it
             '3200 shot list\n'
-            '3500 1\n3800 0\n'          # UP: play the first clip
+            '3500 8\n3800 0\n'          # RIGHT: play the first clip
             '4500 shot play1\n'
             '5500 shot play2\n'
             '5600 2\n5900 0\n'          # DOWN: back to the list
             '6600 shot list2\n'
-            '6700 2\n7000 0\n'          # DOWN: leave the player
+            '6700 4\n7000 0\n'          # LEFT: leave the player
             '7700 shot menu2\n'
             '8200 quit\n')
 env = dict(os.environ, PB_FS=fsdir)
@@ -92,10 +94,10 @@ s = {n: shot(n) for n in ('menu', 'list', 'play1', 'play2', 'list2', 'menu2')}
 check(all(s.values()), 'every screenshot was taken')
 if all(s.values()):
     check(s['menu'] != s['list'], 'opening VIDEOS shows the clip list')
-    check(s['list'] != s['play1'], 'UP on a clip starts the video')
+    check(s['list'] != s['play1'], 'RIGHT on a clip starts the video')
     check(s['play1'] != s['play2'], 'the picture moves while it plays')
     check(s['list2'] == s['list'], 'DOWN while playing goes back to the same list')
-    check(s['menu2'] != s['list2'], 'DOWN on the list leaves the player')
+    check(s['menu2'] != s['list2'], 'LEFT on the list leaves the player')
 
 print('\n' + ('all video checks passed' if not fails else f'{fails} CHECKS FAILED'))
 shutil.rmtree(tmp, ignore_errors=True)

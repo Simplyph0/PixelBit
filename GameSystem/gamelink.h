@@ -66,6 +66,12 @@ public:
   // Back to LINK_IDLE: stops beaconing / withdraws a join request.
   void cancel();
 
+  // Chat packets (chat.h): one broadcast, authenticated with the link secret, valid in every
+  // state, so a message arrives whatever the radio is doing. The handler is called from poll().
+  bool sendChat(const uint8_t* body, uint8_t len);
+  void setChatHandler(void (*handler)(const uint8_t* body, uint8_t len));
+  uint8_t gameTag() const { return tag; }
+
   // Data between connected consoles. receive() hands over the newest packet
   // that arrived since the last call and discards older ones.
   bool send(const uint8_t* data, uint8_t len);
@@ -138,6 +144,10 @@ private:
 
 // The id this console shows, available before the radio is on.
 void linkOwnId(char out[LINK_ID_LEN + 1]);
+void linkOwnIdBytes(uint8_t out[3]);
+// An id as 3 bytes and as its 5 characters, and back (letters in either case; false if it is not an id)
+void linkIdToText(const uint8_t id[3], char out[LINK_ID_LEN + 1]);
+bool linkIdFromText(const char* text, uint8_t id[3]);
 
 extern GameLink gameLink;
 

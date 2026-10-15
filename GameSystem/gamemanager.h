@@ -18,6 +18,7 @@
 #include "rps.h"
 #include "connect4.h"
 #include "videoplayer.h"
+#include "chatmenu.h"
 #include "tutorial.h"
 #include "welcome.h"
 #include "testmode.h"
@@ -42,20 +43,20 @@ private:
   uint16_t optionsSeen;                    // bit n: game n's settings screens were shown once
   int nextShownOption(int from, int dir);
   int menuTarget;     // unwrapped index the carousel is sliding to
-  static Game* const games[MAX_GAMES];
   bool newHighscore; // Flag for new highscore
   unsigned long exitHeldSince; // 0 = exit combo not held
-  uint8_t secretHist[SECRET_LEN];   // last presses on the menu: 0=L 1=U 2=D 3=R
-  int secretCount;
-  unsigned long secretLast, secretArmedUntil, secretHoldSince;
   int getCurrentScore();
   bool exitComboHeld();
-  bool syncStopRequested();
-  unsigned long syncLastUpTap;
-  bool trackSecret();
 
 public:
+  static Game* const games[MAX_GAMES];
   void init();
+  void resetGameOptions();      // every game forgets its remembered settings (SETTINGS > RESET OPTIONS)
+  bool radioBlocked();          // the Wi-Fi pages (SETTINGS > WI-FI PAGE, video upload) own the radio: chat keeps off it
+  void showIntroNextBoot();     // clears the "tour seen" flag so the next boot greets again
+  void factoryReset();          // scores, every game's settings and the tour flag back to new (SETTINGS > FACTORY RESET)
+  static Game* gameAt(int i) { return (i >= 0 && i < MAX_GAMES) ? games[i] : nullptr; }
+  bool keepsScreenOn();         // something is running that needs no buttons: the screen must not turn off
   void startTutorial();
   void acknowledgeTour();       // saves "the first-boot tour was seen"
   bool checkTestEntry();        // LEFT x3 then hold UP: manufacturing test mode

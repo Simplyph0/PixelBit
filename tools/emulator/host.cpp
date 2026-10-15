@@ -27,6 +27,9 @@
 #include "gamelink.h"
 #include "highscore.h"
 #include "settings.h"
+#include "device.h"
+#include "chat.h"
+#include "contacts.h"
 #include "capture.h"
 
 #include "platform.h"
@@ -655,6 +658,9 @@ int main(int argc, char** argv) {
   initInput();
   g_replayBase = millis();
   initHighscores();
+  initDevice();
+  initContacts();
+  initChat();
   if (!isFirstBoot()) showSplash();
   syncInit();
   initGameManager();
@@ -664,6 +670,8 @@ int main(int argc, char** argv) {
     pollInput();
     airPump();
     updateInput();
+    updateDevice(gameManager.keepsScreenOn());
+    updateChat(gameManager.radioBlocked());
     updateGameManager();
     frameWait();
   }

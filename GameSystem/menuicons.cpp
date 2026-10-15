@@ -63,6 +63,15 @@ static const IconRect ICON_VIDEO[] = {
   {1,1,14,14,1}, {2,2,12,12,0}, {6,4,1,8,1}, {7,5,1,6,1}, {8,6,1,4,1}, {9,7,1,2,1}
 };
 
+static const IconRect ICON_CHAT[] = {
+  {1,1,14,10,1}, {2,2,12,8,0}, {4,11,3,3,1}, {3,13,2,2,1}, {4,5,2,2,1}, {7,5,2,2,1}, {10,5,2,2,1}
+};
+
+static const IconRect ICON_SETTINGS[] = {
+  {4,4,8,8,1}, {6,6,4,4,0}, {7,0,2,4,1}, {7,12,2,4,1}, {0,7,4,2,1}, {12,7,4,2,1},
+  {2,2,3,3,1}, {11,2,3,3,1}, {2,11,3,3,1}, {11,11,3,3,1}
+};
+
 struct IconDef { const IconRect* rects; uint8_t count; };
 #define ICON(a) { a, sizeof(a) / sizeof(a[0]) }
 
@@ -70,7 +79,7 @@ static const IconDef ICONS[MAX_GAMES] = {
   ICON(ICON_SNAKE), ICON(ICON_TETRIS), ICON(ICON_FLAPPY), ICON(ICON_2048), ICON(ICON_BREAKOUT),
   ICON(ICON_FROGGER), ICON(ICON_HELICOPTER), ICON(ICON_PACMAN), ICON(ICON_PONG),
   ICON(ICON_INVADERS), ICON(ICON_DINO), ICON(ICON_TICTACTOE), ICON(ICON_RPS), ICON(ICON_CONNECT4),
-  ICON(ICON_VIDEO)
+  ICON(ICON_VIDEO), ICON(ICON_CHAT), ICON(ICON_SETTINGS)
 };
 
 void drawGameIcon(int gameId, int x, int y, int scale, bool dim) {

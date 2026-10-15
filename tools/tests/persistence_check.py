@@ -59,7 +59,7 @@ if flag() != 0:
     fail('the tour flag was saved before the tour was acknowledged')
 
 # 2. test mode: LEFT three times, hold UP, run the storage test, leave
-run('seed 1\n700 4\n830 0\n1000 4\n1130 0\n1300 4\n1430 0\n1600 1\n3000 0\n3300 8\n3430 0\n3700 1\n3830 0\n4300 quit\n')
+run('seed 1\n700 4\n830 0\n1000 4\n1130 0\n1300 4\n1430 0\n1600 1\n3000 0\n3300 2\n3430 0\n3500 2\n3630 0\n3700 8\n3830 0\n4300 quit\n')
 if flag() != 0:
     fail('test mode must not acknowledge the tour')
 
@@ -79,6 +79,64 @@ run('seed 1\n3500 quit\n')
 if read_file() != before:
     fail('the saved data changed on a normal boot')
 
+def taps(*codes, start=3000, gap=400):
+    """Replay lines for a sequence of button taps (bits: 1 up, 2 down, 4 left, 8 right)."""
+    t, out = start, ''
+    for c in codes:
+        out += f'{t} {c}\n{t + 130} 0\n'
+        t += gap
+    return out, t
+
+
+# 6. SETTINGS > SHOW INTRO clears the tour flag, so the next boot greets again (the flag is 1 from step 4)
+if flag() != 1:
+    fail('the tour flag should be set before the SHOW INTRO check')
+body, t = taps(4, 1, 2, 2, 2, 2, 2, 2, 2, 8)   # SETTINGS tile, open it, down 7 times to SHOW INTRO, select
+run('seed 1\n' + body + f'{t + 800} quit\n')
+if flags() is None or flag() != 0:
+    fail('SHOW INTRO did not clear the tour flag')
+
+run('seed 1\n700 1\n830 0\n1100 8\n3000 0\n3500 1\n3630 0\n4200 quit\n')   # greet and acknowledge again (as in step 4)
+if flag() != 1:
+    fail('could not acknowledge the tour again for the factory reset check')
+
+# 7. SETTINGS keeps brightness; FACTORY RESET puts everything back (and the console restarts)
+def device():
+    d = read_file()
+    return (d[200:204], d[204], d[205], d[206]) if len(d) > 207 else (b'', None, None, None)
+
+def contact_record(alias):
+    slots = [bytes([1, 2, 3]) + alias.encode().ljust(11, b'\0')] + [bytes(14)] * 7
+    body = b'CONT' + b''.join(slots)
+    sum_ = 0x5A
+    for b in body:
+        sum_ = (sum_ * 31 + b) & 0xFF
+    return body + bytes([sum_])
+
+data = bytearray(read_file().ljust(512, b'\0'))
+rec = contact_record('DAD')
+data[220:220 + len(rec)] = rec
+open(FILE, 'wb').write(bytes(data))
+body, t = taps(4, 1, 8)    # SETTINGS, open, BRIGHTNESS: HIGH -> MAX
+run('seed 1\n' + body + f'{t + 800} quit\n')
+tag, bright, sleep, chat = device()
+if tag != b'DEVS' or bright != 4:
+    fail('the brightness was not saved')
+if read_file()[220:224] != b'CONT' or read_file()[224:227] != bytes([1, 2, 3]):
+    fail('the chat contact should still be there before the factory reset')
+body, t = taps(4, 1, 2, 2, 2, 2, 2, 2, 2, 2)   # SETTINGS, open, down 8 times: FACTORY RESET
+run('seed 1\n' + body + f'{t} 8\n{t + 3400} 0\n' + f'{t + 3600} quit\n')
+if device()[1] != 4 or read_file()[224:227] != bytes([1, 2, 3]):
+    fail('holding RIGHT through the opening of the factory reset screen must not erase anything')
+run('seed 1\n' + body + f'{t} 8\n{t + 130} 0\n{t + 600} 8\n{t + 4000} 0\n' + f'{t + 7000} quit\n')
+tag, bright, sleep, chat = device()
+if tag != b'DEVS' or bright != 3 or sleep != 0 or chat != 1:
+    fail(f'the factory reset did not restore the screen and chat settings ({device()})')
+if read_file()[224:227] != bytes(3):
+    fail('the factory reset did not clear the chat contacts')
+if flag() != 0:
+    fail('the factory reset did not make the tour new again')
+
 print('persistence: the tour is acknowledged only by finishing it or closing the skip message; '
-      'test mode and power cuts leave it unacknowledged; saved data survives a restart')
+      'test mode and power cuts leave it unacknowledged; saved data survives a restart; SHOW INTRO and FACTORY RESET work')
 shutil.rmtree(DIR, ignore_errors=True)

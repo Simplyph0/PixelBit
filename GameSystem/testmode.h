@@ -7,8 +7,8 @@
 // Manufacturing test mode. Entered from the first-boot greeting or tour with
 // LEFT three times, then holding UP (see GameManager). It never saves the
 // "tour acknowledged" flag, so a unit that is tested still greets its new owner.
-// Tests: display patterns, buttons, storage (reads the flash back), radio, system info,
-// and firmware update. Nothing here is saved.
+// Tests: display patterns, buttons, storage (reads the flash back), radio and system info.
+// Nothing here is saved. (The firmware update lives in SETTINGS.)
 class TestMode {
 public:
   void begin();
@@ -16,7 +16,7 @@ public:
   bool draw();     // draws; false = nothing changed, so the manager can skip the display refresh
 
 private:
-  enum Page : uint8_t { P_LIST, P_DISPLAY, P_BUTTONS, P_STORAGE, P_RADIO, P_SYSTEM, P_UPDATE };
+  enum Page : uint8_t { P_LIST, P_DISPLAY, P_BUTTONS, P_STORAGE, P_RADIO, P_SYSTEM };
   Page page;
   uint8_t sel;
   uint8_t result[8];            // per list item: 0 not run, 1 pass, 2 fail

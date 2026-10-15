@@ -50,6 +50,7 @@ struct String : std::string {
   String substring(size_t n) const { return String(substr(n)); }
   void reserve(size_t n) { std::string::reserve(n); }
   unsigned length() const { return size(); }
+  using std::string::operator+=;   // += a string or a string literal, as the real String has
   String& operator+=(char c) { push_back(c); return *this; }
   bool operator!=(const char* s) const { return compare(s) != 0; }
 };

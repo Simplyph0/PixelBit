@@ -111,6 +111,10 @@ target_compile_definitions(vs_test PRIVATE USE_AIR)
 
 pb_test(pbv_test ${TESTS}/pbv_test.cpp ${FW}/pbvcodec.cpp)
 
+pb_test(chat_test ${TESTS}/chat_test.cpp ${TESTS}/air.cpp ${CORE_SRC} ${LINK_SRC}
+        ${FW}/chat.cpp ${FW}/contacts.cpp ${FW}/device.cpp)
+target_compile_definitions(chat_test PRIVATE USE_AIR)
+
 # the firmware update: three builds with different version numbers talk to each other.
 # All three have fixed versions, so raising OS_VERSION in config.h never changes what the test means.
 function(pb_update_test name)   # pb_update_test(name version number)
@@ -130,12 +134,14 @@ add_test(NAME logic COMMAND logic_test)
 add_test(NAME settings COMMAND settings_test)
 add_test(NAME tictactoe COMMAND ttt_test)
 add_test(NAME rps COMMAND rps_test)
+add_test(NAME chat_unit COMMAND chat_test unit)
 if(Python3_FOUND)
   add_test(NAME persistence COMMAND ${Python3_EXECUTABLE} ${TESTS}/persistence_check.py $<TARGET_FILE:emulator>)
+  add_test(NAME chat COMMAND ${Python3_EXECUTABLE} ${TESTS}/chat_check.py $<TARGET_FILE_DIR:chat_test>)
   add_test(NAME versus COMMAND ${Python3_EXECUTABLE} ${TESTS}/vs_check.py $<TARGET_FILE_DIR:vs_test>)
   add_test(NAME firmware_update COMMAND ${Python3_EXECUTABLE} ${TESTS}/update_check.py $<TARGET_FILE_DIR:update_test>)
   add_test(NAME video COMMAND ${Python3_EXECUTABLE} ${TESTS}/video_check.py $<TARGET_FILE:pbv_test> $<TARGET_FILE:emulator>)
-  set_tests_properties(persistence video versus firmware_update PROPERTIES TIMEOUT 600)
+  set_tests_properties(persistence video versus firmware_update chat PROPERTIES TIMEOUT 600)
   # versus and firmware_update talk over the same UDP ports: never at the same time, even with ctest -j
-  set_tests_properties(versus firmware_update PROPERTIES RESOURCE_LOCK radio)
+  set_tests_properties(versus firmware_update chat PROPERTIES RESOURCE_LOCK radio)
 endif()
