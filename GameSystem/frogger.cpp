@@ -242,11 +242,15 @@ void FroggerGame::drawLanes() {
 void FroggerGame::drawFrog() {
   if (millis() < resumeAt && (millis() / 120) % 2) return;   // blinks while respawning
   int x = (int)frogX, y = frogRow * ROW_H + 1;
-  display.fillRect(x, y + 1, FROG_W, FROG_H - 1, SSD1306_WHITE);
-  display.drawPixel(x, y, SSD1306_WHITE);
-  display.drawPixel(x + FROG_W - 1, y, SSD1306_WHITE);
-  display.drawPixel(x + 1, y + 1, SSD1306_BLACK);
-  display.drawPixel(x + FROG_W - 2, y + 1, SSD1306_BLACK);
+  // Drawn by inverting what is behind it, so the frog shows on anything: white on the dark water
+  // and road, black on a log or a car (which are solid white). The eyes are inverted back, so
+  // they always show the background.
+  for (int j = 1; j < FROG_H; j++)
+    for (int i = 0; i < FROG_W; i++) display.drawPixel(x + i, y + j, SSD1306_INVERSE);
+  display.drawPixel(x, y, SSD1306_INVERSE);
+  display.drawPixel(x + FROG_W - 1, y, SSD1306_INVERSE);
+  display.drawPixel(x + 1, y + 1, SSD1306_INVERSE);
+  display.drawPixel(x + FROG_W - 2, y + 1, SSD1306_INVERSE);
 }
 
 void FroggerGame::drawUI() {

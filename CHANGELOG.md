@@ -9,6 +9,8 @@ release notes.
 
 ## Unreleased
 
+- **Fixed: the frog disappeared when it rode a log or was hit by a car in Frogger.** Logs and cars are solid white and so was the frog, so on one it merged into a white blob. The frog is now drawn by inverting what is behind it: white on the dark water, road and banks, dark on a log or a car, and its eyes always show the background. Contrast no longer depends on what the frog is over. A new check in `logic_test` places the frog on the middle of a log, half off a log, at its end, on open water, on a car and on the start bank, and fails if any frog pixel looks like the background behind it (it failed on the log and car cases before the change).
+
 ## v4.4
 
 Chat between consoles, a settings menu on the console, and a Wi-Fi page you start from that menu.

@@ -66,6 +66,33 @@ int main() {
     f.frogX = 110; f.update(); CHECK(f.lives == lives - 1, "frog drowns off a log");
     f.init(); f.resumeAt = 0; f.frogRow = 6; for (int k = 0; k < MAX_LANE_OBJECTS; k++) f.lanes[6].objects[k].active = false; f.lanes[6].objects[0] = {60, 12, true}; f.frogX = 62; lives = f.lives; f.update(); CHECK(f.lives == lives - 1, "frog is hit by a car"); }
 
+  // ---- frogger: the frog must show against whatever it is drawn over (a log is solid white)
+  { auto& f = froggerGame; f.setOption(0, 2); f.init(); f.resumeAt = 0; g_ms += 5000;
+    auto frogShows = [&](int row, int x) {
+      f.frogRow = row; f.frogX = x; clearDisplay(); f.drawLanes();
+      int fx = x, fy = row * ROW_H + 1; bool bg[FROG_H][FROG_W];
+      for (int j = 0; j < FROG_H; j++) for (int i = 0; i < FROG_W; i++) bg[j][i] = display.getPixel(fx + i, fy + j);
+      f.drawFrog();
+      bool ok = true;
+      for (int j = 0; j < FROG_H; j++) for (int i = 0; i < FROG_W; i++) {
+        bool eye = j == 1 && (i == 1 || i == FROG_W - 2);
+        bool body = j > 0 ? !eye : (i == 0 || i == FROG_W - 1);
+        bool now = display.getPixel(fx + i, fy + j);
+        if (body && now == bg[j][i]) ok = false;      // a body pixel that looks like what is behind it: the frog merges
+        if (eye && now != bg[j][i]) ok = false;       // the eyes show the background
+      }
+      return ok; };
+    for (int k = 0; k < MAX_LANE_OBJECTS; k++) f.lanes[2].objects[k].active = false;
+    f.lanes[2].objects[0] = {40, 30, true};
+    CHECK(frogShows(2, 50), "frogger: the frog shows on the middle of a log");
+    CHECK(frogShows(2, 38), "frogger: the frog shows half on, half off a log");
+    CHECK(frogShows(2, 66), "frogger: the frog shows at the end of a log");
+    CHECK(frogShows(2, 100), "frogger: the frog shows on open water");
+    for (int k = 0; k < MAX_LANE_OBJECTS; k++) f.lanes[6].objects[k].active = false;
+    f.lanes[6].objects[0] = {60, 12, true};
+    CHECK(frogShows(6, 62), "frogger: the frog shows on a car it is hit by");
+    CHECK(frogShows(8, 20), "frogger: the frog shows on the start bank"); }
+
   // ---- invaders: shields erode, UFO scores
   { auto& v = invadersGame; v.setOption(0, 2); v.init(); }
   { auto& v = invadersGame; v.init(); bool hit = v.shieldHit(12 + 5, 46 + 3); CHECK(hit, "bullet hits a shield"); CHECK(!(v.shield[0][3] & (1 << (11 - 5))), "the hit pixel is gone");
