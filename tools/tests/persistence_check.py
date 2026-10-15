@@ -83,7 +83,7 @@ def taps(*codes, start=3000, gap=800):
     """Replay lines for a sequence of button taps (bits: 1 up, 2 down, 4 left, 8 right)."""
     t, out = start, ''
     for c in codes:
-        out += f'{t} {c}\n{t + 300} 0\n'   # held 300 ms (the menu repeats after 350): at speed 4 that is 75 ms of real time, enough for a slow CI runner's frame
+        out += f'{t} {c}\n{t + 300} 0\n'   # held 300 ms (the menu repeats after 350): at speed 2 that is 150 ms of real time, enough for a slow CI runner's frame
         t += gap
     return out, t
 
@@ -92,7 +92,7 @@ def taps(*codes, start=3000, gap=800):
 if flag() != 1:
     fail('the tour flag should be set before the SHOW INTRO check')
 body, t = taps(4, 1, 2, 2, 2, 2, 2, 2, 2, 8)   # SETTINGS tile, open it, down 7 times to SHOW INTRO, select
-run('seed 1\n' + body + f'{t + 1500} quit\n', speed=4)
+run('seed 1\n' + body + f'{t + 1500} quit\n', speed=2)
 if flags() is None or flag() != 0:
     fail('SHOW INTRO did not clear the tour flag')
 
@@ -118,17 +118,17 @@ rec = contact_record('DAD')
 data[220:220 + len(rec)] = rec
 open(FILE, 'wb').write(bytes(data))
 body, t = taps(4, 1, 8)    # SETTINGS, open, BRIGHTNESS: HIGH -> MAX
-run('seed 1\n' + body + f'{t + 1500} quit\n', speed=4)
+run('seed 1\n' + body + f'{t + 1500} quit\n', speed=2)
 tag, bright, sleep, chat = device()
 if tag != b'DEVS' or bright != 4:
     fail('the brightness was not saved')
 if read_file()[220:224] != b'CONT' or read_file()[224:227] != bytes([1, 2, 3]):
     fail('the chat contact should still be there before the factory reset')
 body, t = taps(4, 1, 2, 2, 2, 2, 2, 2, 2, 2)   # SETTINGS, open, down 8 times: FACTORY RESET
-run('seed 1\n' + body + f'{t} 8\n{t + 3400} 0\n' + f'{t + 3600} quit\n', speed=4)
+run('seed 1\n' + body + f'{t} 8\n{t + 3400} 0\n' + f'{t + 3600} quit\n', speed=2)
 if device()[1] != 4 or read_file()[224:227] != bytes([1, 2, 3]):
     fail('holding RIGHT through the opening of the factory reset screen must not erase anything')
-run('seed 1\n' + body + f'{t} 8\n{t + 300} 0\n{t + 1000} 8\n{t + 4400} 0\n' + f'{t + 7500} quit\n', speed=4)
+run('seed 1\n' + body + f'{t} 8\n{t + 300} 0\n{t + 1000} 8\n{t + 4400} 0\n' + f'{t + 7500} quit\n', speed=2)
 tag, bright, sleep, chat = device()
 if tag != b'DEVS' or bright != 3 or sleep != 0 or chat != 1:
     fail(f'the factory reset did not restore the screen and chat settings ({device()})')
