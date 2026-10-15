@@ -64,19 +64,19 @@ with open(replay, 'w') as f:
     # runner) cannot have a press and its release fall inside one frame
     f.write('seed 1\n'
             '600 4\n900 0\n'            # LEFT from the first game: the last tile, SETTINGS
-            '1000 4\n1300 0\n'         # LEFT again: CHAT
-            '1400 4\n1700 0\n'         # and again: VIDEOS
-            '2000 shot menu\n'
-            '2300 1\n2600 0\n'          # UP: open it
-            '3200 shot list\n'
-            '3500 8\n3800 0\n'          # RIGHT: play the first clip
-            '4500 shot play1\n'
-            '5500 shot play2\n'
-            '5600 2\n5900 0\n'          # DOWN: back to the list
-            '6600 shot list2\n'
-            '6700 4\n7000 0\n'          # LEFT: leave the player
-            '7700 shot menu2\n'
-            '8200 quit\n')
+            '1600 4\n1900 0\n'          # LEFT again: CHAT
+            '2600 4\n2900 0\n'          # and again: VIDEOS (a full second between presses: the carousel is still sliding)
+            '3800 shot menu\n'
+            '4200 1\n4500 0\n'          # UP: open it
+            '5200 shot list\n'
+            '5500 8\n5800 0\n'          # RIGHT: play the first clip
+            '6500 shot play1\n'
+            '7500 shot play2\n'
+            '7600 2\n7900 0\n'          # DOWN: back to the list
+            '8600 shot list2\n'
+            '8700 4\n9000 0\n'          # LEFT: leave the player
+            '9700 shot menu2\n'
+            '10200 quit\n')
 env = dict(os.environ, PB_FS=fsdir)
 r = run([emulator, '--headless', '--fast', '--speed', '4', '--no-tutorial', '--replay', replay], cwd=work, env=env)
 check(r.returncode == 0, 'the emulator ran the script')
