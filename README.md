@@ -92,6 +92,7 @@ PixelBit is a handheld arcade you can fit in your pocket. It's an ESP8266, a tin
 - Console-to-console firmware updates over ESP-NOW, no cable or PC needed, see [Console-to-console firmware update](#console-to-console-firmware-update)
 - Board built upside down? One setting (`FLIPPED_BUTTONS`) swaps the buttons, and swapped display pins are found on their own
 - A video player: black and white clips, no sound, uploaded over Wi-Fi, made with a converter you can set for more detail or easier viewing, see [Videos](#videos)
+- A one-page printable [quick start](docs/PixelBit-QuickStart.pdf) for new owners
 - A PC emulator for Linux, macOS and Windows, and automated tests that run on all three, see [tools/](tools/README.md)
 - Ready-made `.bin` files on the [Releases](https://github.com/Simplyph0/PixelBit/releases) page, built and tested automatically
 
@@ -157,6 +158,8 @@ The release builds use the `LINK_SECRET` that is in this repo, so they can play 
 Heads up: `LINK_SECRET` is sitting in the source, so anyone with your firmware can read it. It keeps other people and other builds out of your games, but it won't stop someone who has your firmware.
 
 ## Using the console
+
+New to it? Print the one-page, black and white **[quick start](docs/PixelBit-QuickStart.pdf)**: the four buttons, two-console games, chat, the Wi-Fi page, videos, settings, updating one console from another, and what to try when something is wrong.
 
 ### First boot
 A new console plays a welcome animation ("Welcome to your new PixelBit!") and then a short tour. The tour waits for you to actually press each button.
@@ -426,6 +429,7 @@ In the emulator, add `--firmware file.bin` to load a real image to send, `--upda
 |---|---|
 | `GameSystem/` | The firmware. Open `GameSystem.ino` |
 | `tools/video/` | `pbv.py`, the converter that turns a video into a `.pbv` for the video player |
+| `docs/` | `PixelBit-QuickStart.pdf`, the one-page black and white printable guide, and `make_quickstart.py` (needs LibreOffice) that rebuilds it from the emulator screenshots in `docs/screens/` |
 | `tools/emulator/` | A PC emulator (Linux, macOS, Windows) that runs the real firmware in a window. Screenshots, GIFs, input recording and replay |
 | `tools/tests/` | Automated checks for the game rules, the AIs, two-console play and saved data. Run `ctest --test-dir build/tools` (CMake) or `make test` in there |
 | `tools/CMakeLists.txt` | Builds the emulator and the tests on Linux, macOS and Windows |
