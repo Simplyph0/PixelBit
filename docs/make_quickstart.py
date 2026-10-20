@@ -20,7 +20,7 @@ from xml.sax.saxutils import escape
 HERE = os.path.dirname(os.path.abspath(__file__))
 SCREENS = os.path.join(HERE, 'screens')
 OUT_PDF = os.path.join(HERE, 'PixelBit-QuickStart.pdf')
-FONT_SCALE = 1.20        # everything is sized for 7.6 pt body text, times this
+FONT_SCALE = 1.18        # everything is sized for 7.6 pt body text, times this
 
 
 # ---- screenshots: read a PNG, print it dark on white ------------------------
@@ -183,11 +183,11 @@ LEFT = [
                                  cell(picture('menu', 3.35, 'The menu: LEFT / RIGHT scroll'), 'CellPic')]], 'TblIn'),
     bullet('**Menu:** LEFT and RIGHT scroll through the games (hold to keep going). **UP** starts one.'),
     bullet('**DOWN** (tap) opens that game\'s settings. Games that have some show `vSET`. Hold DOWN for a second to replay the welcome tour.'),
-    bullet('**In a game:** hold **UP + DOWN** together for a second to leave. On the result screen UP goes to the menu, RIGHT plays again.'),
+    bullet('**In a game:** hold **UP + DOWN** together for a second to leave. On the result screen UP goes to the menu, RIGHT plays again. In **Chess**, LEFT / RIGHT pick a piece, UP selects it, LEFT / RIGHT pick the square, UP moves.'),
     bullet('**In a list** (SETTINGS, VIDEOS, CHAT): UP and DOWN scroll, **RIGHT** picks, **LEFT** goes back.'),
 
     h('2.  PLAY A FRIEND (TWO CONSOLES)'),
-    p('Pong, Tic-Tac-Toe, Rock Paper Scissors and Connect 4. No router and no Wi-Fi: the two consoles talk to each other directly by radio. Keep them within a few metres, both on the same firmware version.'),
+    p('Pong, Tic-Tac-Toe, Rock Paper Scissors, Connect 4 and Chess. No router and no Wi-Fi: the two consoles talk to each other directly by radio. Keep them within a few metres, both on the same firmware version.'),
     step(1, 'On **both** consoles pick the game, tap **DOWN** on the menu and choose **2 PLAYER**.'),
     step(2, 'One console picks **HOST GAME**, the other picks **JOIN GAME**.'),
     step(3, 'The joiner chooses the host\'s 5-letter ID with LEFT / RIGHT, then **UP**.'),
@@ -276,7 +276,7 @@ def build():
     right = ''.join(RIGHT)
     header = table('head', [1, 3],
                    [[cell(p('PIXELBIT', 'Title') + p('Pocket arcade: quick start', 'Sub')),
-                     cell(p('14 games  +  a video player  +  chat', 'Tag') + p('No router and no computer needed to play.', 'Tag') +
+                     cell(p('15 games  +  a video player  +  chat', 'Tag') + p('No router and no computer needed to play.', 'Tag') +
                           p('Full guide: the README at github.com/Simplyph0/PixelBit', 'Tag'))]], 'Tbl')
     page = table('page', [1, 2, 3], [[cell(left), cell(''), cell(right)]], 'Tbl')
     foot = p('Stuck anywhere?  Hold  UP + DOWN  for a second to get out of a game, back to the menu.', 'Foot')

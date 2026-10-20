@@ -7,6 +7,9 @@ name: Build firmware
 # Pushing a tag like v4.2 publishes that version instead, with the tag's own
 # message as the notes; a main push whose commit carries such a tag leaves the
 # release to the tag.
+#
+# Three jobs. "test" (on Linux, macOS and Windows) and "firmware" (the real compile for the
+# console) run at the same time; "release" waits for both and publishes.
 on:
   push:
     branches: [main]
@@ -39,6 +42,9 @@ jobs:
     defaults:
       run:
         shell: ${{ matrix.shell }}
+    env:
+      HOMEBREW_NO_AUTO_UPDATE: 1          # brew is slow when it updates itself first
+      HOMEBREW_NO_INSTALL_CLEANUP: 1
     steps:
       - uses: actions/checkout@v4
 
@@ -59,7 +65,7 @@ jobs:
 
       - name: Install SDL2 (Linux)
         if: runner.os == 'Linux'
-        run: sudo apt-get update && sudo apt-get install -y libsdl2-dev ninja-build
+        run: sudo apt-get update && sudo apt-get install -y --no-install-recommends libsdl2-dev ninja-build
 
       - name: Install SDL2 (macOS)
         if: runner.os == 'macOS'
@@ -70,26 +76,32 @@ jobs:
           cmake -S tools -B build/tools -G Ninja -DCMAKE_BUILD_TYPE=Release
           cmake --build build/tools -- -k 0   # keep going after an error, so one run shows every failure
 
+      # The tests use different UDP ports and mostly wait on simulated clocks, so they run side by side
       - name: Run the tests
-        run: ctest --test-dir build/tools --output-on-failure
+        run: ctest --test-dir build/tools --output-on-failure -j 3
 
-  build:
-    needs: test
+  firmware:
+    name: firmware (compile for the console)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-        with:
-          fetch-depth: 0          # the whole history, for the changelog
-
-      - name: Fetch the tags with their messages
-        run: git fetch --tags --force
 
       - uses: arduino/setup-arduino-cli@v2
 
+      # The ESP8266 core and the libraries are big downloads, and the core takes a while to build: keep both between runs
+      - name: Cache the ESP8266 core, the libraries and the built core
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.arduino15
+            ~/Arduino/libraries
+            ~/.cache/arduino/cores
+          key: arduino-esp8266-3.1.2-adafruit-v1
+
       - name: Install ESP8266 core and libraries
         run: |
-          arduino-cli config init
-          arduino-cli config add board_manager.additional_urls https://arduino.esp8266.com/stable/package_esp8266com_index.json
+          arduino-cli config init || true       # already there when the cache is warm
+          arduino-cli config set board_manager.additional_urls https://arduino.esp8266.com/stable/package_esp8266com_index.json
           arduino-cli core update-index
           arduino-cli lib update-index
           arduino-cli core install esp8266:esp8266@3.1.2
@@ -101,11 +113,37 @@ jobs:
         run: arduino-cli compile --fqbn esp8266:esp8266:d1_mini:eesz=4M2M --output-dir build GameSystem
 
       - name: Compile the flipped-buttons version
-        # The same firmware with FLIPPED_BUTTONS set to 1 (config.h lets the compiler override it)
+        # The same firmware with FLIPPED_BUTTONS set to 1 (config.h lets the compiler override it).
+        # The core is already built, so this only compiles the sketch.
         run: >-
           arduino-cli compile --fqbn esp8266:esp8266:d1_mini:eesz=4M2M
           --build-property "compiler.cpp.extra_flags=-DFLIPPED_BUTTONS=1"
           --build-path /tmp/pixelbit-flipped --output-dir build-flipped GameSystem
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: firmware-raw
+          path: |
+            build/GameSystem.ino.bin
+            build-flipped/GameSystem.ino.bin
+          retention-days: 1
+
+  release:
+    name: release
+    needs: [test, firmware]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0          # the whole history, for the changelog
+
+      - name: Fetch the tags with their messages
+        run: git fetch --tags --force
+
+      - uses: actions/download-artifact@v4
+        with:
+          name: firmware-raw
+          path: .
 
       - name: Work out the release
         id: rel

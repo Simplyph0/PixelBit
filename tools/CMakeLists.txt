@@ -72,15 +72,20 @@ if(Threads_FOUND)
   target_link_libraries(plat PUBLIC Threads::Threads)
 endif()
 
-# ---- the firmware, as the emulator and the tests use it ----
+# ---- the firmware and Adafruit GFX: compiled ONCE, shared by the emulator and every test ----
+# A test links the library and the linker takes only the files that test needs, so nothing is
+# compiled twice. (Each test used to compile its own copy of every file it used.)
 file(GLOB FW_ALL_CPP ${FW}/*.cpp)
+add_library(gfx STATIC ${GFX}/Adafruit_GFX.cpp)
+add_library(fwlib STATIC ${FW_ALL_CPP})
+target_link_libraries(fwlib PUBLIC gfx plat)
 
 # ---- emulator ----
 find_package(SDL2 CONFIG QUIET)
-add_executable(emulator ${EM}/host.cpp ${FW_ALL_CPP} ${GFX}/Adafruit_GFX.cpp)
-target_link_libraries(emulator PRIVATE plat)
+add_executable(emulator ${EM}/host.cpp)
+target_link_libraries(emulator PRIVATE fwlib plat)
 if(TARGET SDL2::SDL2)
-  target_compile_definitions(emulator PRIVATE USE_SDL)
+  set_source_files_properties(${EM}/host.cpp PROPERTIES COMPILE_DEFINITIONS USE_SDL)   # only the window code needs it
   target_link_libraries(emulator PRIVATE SDL2::SDL2)
   message(STATUS "Emulator: with an SDL2 window")
 else()
@@ -88,41 +93,38 @@ else()
 endif()
 
 # ---- tests ----
-set(CORE_SRC ${TESTS}/hostenv.cpp ${GFX}/Adafruit_GFX.cpp
-    ${FW}/display.cpp ${FW}/input.cpp ${FW}/ui.cpp ${FW}/fx.cpp)
-set(LINK_SRC ${FW}/lobby.cpp ${FW}/gamelink.cpp ${FW}/crypto.cpp)
-set(GAME_SRC)
-foreach(g snake tetris flappy game2048 breakout frogger helicopter pacman pong invaders dino)
-  list(APPEND GAME_SRC ${FW}/${g}.cpp)
-endforeach()
+# The test environment (the clock and the stand-in Arduino core) comes in two flavours: with a
+# controllable clock, or with the simulated radio and a real clock (USE_AIR). Built once each.
+add_library(env_host OBJECT ${TESTS}/hostenv.cpp)
+add_library(env_air OBJECT ${TESTS}/hostenv.cpp ${TESTS}/air.cpp)
+target_compile_definitions(env_air PRIVATE USE_AIR)
 
-function(pb_test name)   # pb_test(name sources...)
-  add_executable(${name} ${ARGN})
-  target_link_libraries(${name} PRIVATE plat)
+function(pb_test name env)   # pb_test(name host|air sources...)
+  add_executable(${name} ${ARGN} $<TARGET_OBJECTS:env_${env}>)
+  target_link_libraries(${name} PRIVATE fwlib plat)
+  if(env STREQUAL "air")
+    target_compile_definitions(${name} PRIVATE USE_AIR)
+  endif()
 endfunction()
 
-pb_test(logic_test ${TESTS}/logic_test.cpp ${CORE_SRC} ${LINK_SRC} ${GAME_SRC})
-pb_test(ttt_test ${TESTS}/ttt_test.cpp ${CORE_SRC} ${FW}/tictactoe.cpp ${LINK_SRC})
-pb_test(rps_test ${TESTS}/rps_test.cpp ${CORE_SRC} ${FW}/rps.cpp ${LINK_SRC})
-pb_test(settings_test ${TESTS}/settings_test.cpp ${CORE_SRC} ${FW}/settings.cpp)
-pb_test(vs_test ${TESTS}/vs_test.cpp ${TESTS}/air.cpp ${CORE_SRC} ${LINK_SRC}
-        ${FW}/pong.cpp ${FW}/tictactoe.cpp ${FW}/rps.cpp ${FW}/connect4.cpp)
-target_compile_definitions(vs_test PRIVATE USE_AIR)
-
-pb_test(pbv_test ${TESTS}/pbv_test.cpp ${FW}/pbvcodec.cpp)
-
-pb_test(chat_test ${TESTS}/chat_test.cpp ${TESTS}/air.cpp ${CORE_SRC} ${LINK_SRC}
-        ${FW}/chat.cpp ${FW}/contacts.cpp ${FW}/device.cpp)
-target_compile_definitions(chat_test PRIVATE USE_AIR)
+pb_test(logic_test host ${TESTS}/logic_test.cpp)
+pb_test(ttt_test host ${TESTS}/ttt_test.cpp)
+pb_test(rps_test host ${TESTS}/rps_test.cpp)
+pb_test(settings_test host ${TESTS}/settings_test.cpp)
+pb_test(vs_test air ${TESTS}/vs_test.cpp)
+pb_test(pbv_test host ${TESTS}/pbv_test.cpp)
+pb_test(chess_test host ${TESTS}/chess_test.cpp)
+pb_test(chess_vs_test air ${TESTS}/chess_vs_test.cpp)
+pb_test(chat_test air ${TESTS}/chat_test.cpp)
 
 # the firmware update: three builds with different version numbers talk to each other.
 # All three have fixed versions, so raising OS_VERSION in config.h never changes what the test means.
-function(pb_update_test name)   # pb_update_test(name version number)
-  pb_test(${name} ${TESTS}/update_test.cpp ${TESTS}/air.cpp ${CORE_SRC} ${LINK_SRC} ${FW}/fwupdate.cpp)
-  target_compile_definitions(${name} PRIVATE USE_AIR)
-  if(ARGC GREATER 1)
-    target_compile_definitions(${name} PRIVATE "OS_VERSION=\"${ARGV1}\"" OS_VERSION_NUM=${ARGV2})
-  endif()
+# Only fwupdate.cpp knows its version, so only that file is built three times.
+function(pb_update_test name version number)
+  add_library(${name}_fwupdate OBJECT ${FW}/fwupdate.cpp)
+  target_compile_definitions(${name}_fwupdate PRIVATE "OS_VERSION=\"${version}\"" OS_VERSION_NUM=${number})
+  pb_test(${name} air ${TESTS}/update_test.cpp $<TARGET_OBJECTS:${name}_fwupdate>)
+  target_compile_definitions(${name} PRIVATE "OS_VERSION=\"${version}\"" OS_VERSION_NUM=${number})
 endfunction()
 pb_update_test(update_test v4.2 402)
 pb_update_test(update_test_new v4.3 403)
@@ -134,14 +136,16 @@ add_test(NAME logic COMMAND logic_test)
 add_test(NAME settings COMMAND settings_test)
 add_test(NAME tictactoe COMMAND ttt_test)
 add_test(NAME rps COMMAND rps_test)
+add_test(NAME chess COMMAND chess_test)
 add_test(NAME chat_unit COMMAND chat_test unit)
 if(Python3_FOUND)
   add_test(NAME persistence COMMAND ${Python3_EXECUTABLE} ${TESTS}/persistence_check.py $<TARGET_FILE:emulator>)
   add_test(NAME chat COMMAND ${Python3_EXECUTABLE} ${TESTS}/chat_check.py $<TARGET_FILE_DIR:chat_test>)
+  add_test(NAME chess_play COMMAND ${Python3_EXECUTABLE} ${TESTS}/chess_check.py $<TARGET_FILE:chess_vs_test>)
   add_test(NAME versus COMMAND ${Python3_EXECUTABLE} ${TESTS}/vs_check.py $<TARGET_FILE_DIR:vs_test>)
   add_test(NAME firmware_update COMMAND ${Python3_EXECUTABLE} ${TESTS}/update_check.py $<TARGET_FILE_DIR:update_test>)
   add_test(NAME video COMMAND ${Python3_EXECUTABLE} ${TESTS}/video_check.py $<TARGET_FILE:pbv_test> $<TARGET_FILE:emulator>)
-  set_tests_properties(persistence video versus firmware_update chat PROPERTIES TIMEOUT 600)
-  # versus and firmware_update talk over the same UDP ports: never at the same time, even with ctest -j
-  set_tests_properties(versus firmware_update chat PROPERTIES RESOURCE_LOCK radio)
+  set_tests_properties(persistence video versus firmware_update chat chess_play PROPERTIES TIMEOUT 600)
+  # The radio tests can run side by side: each uses its own UDP ports (versus 42000+, chat 43000+,
+  # chess 44000+, the firmware update the default 41000).
 endif()

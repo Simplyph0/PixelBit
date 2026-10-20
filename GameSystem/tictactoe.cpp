@@ -131,17 +131,22 @@ uint8_t TicTacToeGame::chooseAiMove() {
   };
 
   uint8_t move;
+  // The easy levels are really easy, and each step up is a small one. Only the top level never slips.
   switch (level) {
-    case 0:   // EASY: random, now and then spots a win
-      if (random(100) < 30 && (move = finisher(ai)) != 0xFF) return move;
+    case 0:   // EASY: plays anywhere, and never on purpose for a win or a block
       return empty[random(n)];
 
-    case 1:   // NORMAL: wins when it can, blocks most of the time
-      if ((move = finisher(ai)) != 0xFF) return move;
-      if (random(100) < 70 && (move = finisher(human)) != 0xFF) return move;
+    case 1:   // NORMAL: sees a win about one time in three, never blocks
+      if (random(100) < 35 && (move = finisher(ai)) != 0xFF) return move;
       return empty[random(n)];
 
-    case 2:   // HARD: wins, blocks, then prefers centre and corners
+    case 2:   // HARD: takes most wins, blocks about every other time
+      if (random(100) < 70 && (move = finisher(ai)) != 0xFF) return move;
+      if (random(100) < 45 && (move = finisher(human)) != 0xFF) return move;
+      return empty[random(n)];
+
+    case 3:   // EXPERT: wins, blocks and likes the centre and the corners, but one move in four is a slip
+      if (random(100) < 25) return empty[random(n)];
       if ((move = finisher(ai)) != 0xFF) return move;
       if ((move = finisher(human)) != 0xFF) return move;
       if (!board[4]) return 4;
@@ -152,8 +157,7 @@ uint8_t TicTacToeGame::chooseAiMove() {
       }
       return empty[random(n)];
 
-    default: {   // EXPERT / INSANE: minimax, picks randomly among the best moves
-      if (level == 3 && random(100) < 12) return empty[random(n)];   // EXPERT blunders now and then
+    default: {   // INSANE: minimax, picks randomly among the best moves, so it never loses
       int bestScore = -1000;
       uint8_t bests[9], nb = 0;
       for (uint8_t k = 0; k < n; k++) {

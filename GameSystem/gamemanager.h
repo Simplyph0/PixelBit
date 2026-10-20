@@ -17,6 +17,7 @@
 #include "tictactoe.h"
 #include "rps.h"
 #include "connect4.h"
+#include "chess.h"
 #include "videoplayer.h"
 #include "chatmenu.h"
 #include "tutorial.h"

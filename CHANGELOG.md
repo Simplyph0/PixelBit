@@ -9,8 +9,21 @@ release notes.
 
 ## Unreleased
 
-- **New: a one-page printable quick start, `docs/PixelBit-QuickStart.pdf`** (black and white, US Letter). It explains the four buttons and the menu, playing a friend on two consoles (host and join), chat and its notification dot, the Wi-Fi page and what it is for, videos and uploading them, the settings, updating one console from another, and what to try when something is wrong, with screenshots from the emulator. `docs/make_quickstart.py` rebuilds it from the screenshots in `docs/screens/` (it needs LibreOffice and no pip packages). The README links to it.
-- **Fixed: the frog disappeared when it rode a log or was hit by a car in Frogger.** Logs and cars are solid white and so was the frog, so on one it merged into a white blob. The frog is now drawn by inverting what is behind it: white on the dark water, road and banks, dark on a log or a car, and its eyes always show the background. Contrast no longer depends on what the frog is over. A new check in `logic_test` places the frog on the middle of a log, half off a log, at its end, on open water, on a car and on the start bank, and fails if any frog pixel looks like the background behind it (it failed on the log and car cases before the change).
+## v4.5
+
+Chess, much easier Tic-Tac-Toe, and a faster build.
+
+- **New: Chess**, the tile after Connect 4 (game 15). Full rules: castling, en passant, promotion, check, checkmate, stalemate and the draws (three-fold repetition, 50 moves, too few pieces, 400 half moves). Play the computer at five levels, VERY EASY (almost random) to SUPER HARD (5 seconds a move), or a friend on a second console (2 PLAYER, then HOST GAME and JOIN GAME). You are White first and the sides swap each game. A win scores 3 and a draw 1, times the level.
+- **Chess with four buttons:** Left/Right step through the pieces that can move, Up picks, Left/Right step through where it can go, Up moves, Down goes back. A pawn on the last rank asks what it becomes. A flashing frame is check.
+- **Pieces are easy to tell apart:** each has its own 7x7 picture, White is drawn light and Black dark on a lit square, and a **PIECES** setting switches to the letters P N B R Q K.
+- **Chess inside:** `chessengine.cpp` has no Arduino code, so the PC tests run exactly what the console runs. It costs about 12 KB of flash and 0.6 KB of permanent RAM; the 2.4 KB move list exists only during a game and the 4.6 KB search workspace only while the computer thinks. The host decides on two consoles and resends lost moves.
+- **Changed: Tic-Tac-Toe is much easier at every level** (players found even EASY too hard). EASY plays at random; NORMAL, HARD and EXPERT take wins and blocks only some of the time; INSANE is unchanged and never loses. A careful player now beats EASY in about 90% of rounds, NORMAL 93%, HARD 67% and EXPERT 30%.
+- **Fixed: the frog vanished on logs and cars in Frogger.** It is now drawn by inverting what is behind it, so it shows on everything.
+- **New: a one-page printable quick start**, `docs/PixelBit-QuickStart.pdf` (black and white). `docs/make_quickstart.py` rebuilds it (needs LibreOffice).
+- **Menu:** Chess is game 14, so VIDEOS, CHAT and SETTINGS move up one (18 tiles; SETTINGS is still last). Saved scores and settings keep working.
+- **Faster builds and tests:** the firmware sources are compiled once and shared by the emulator and every test (a clean build takes about 1m15s locally). Update tests compile only the one file that differs, Tic-Tac-Toe plays fewer rounds (78s to 5s), and the tests run side by side. On GitHub the tests and the real firmware compile now run in parallel (the Arduino core is cached), and the release waits for both.
+- **Tests:** chess rules against the standard perft counts, checkmate, stalemate, draws, castling, en passant and under-promotion; the AI always plays a legal move, finds a mate in one from MEDIUM up and gets stronger with each level; a two-console test plays through the buttons over a radio losing 10% of packets and both consoles must end in the same position. The Tic-Tac-Toe test now fails if the easy levels are not easy, a level is easier than the one below it, or INSANE ever loses. Frogger has a contrast check on logs and cars.
+- README: shorter wording throughout, plus chess (gallery, game table, controls, a Chess section) and the new Tic-Tac-Toe levels.
 
 ## v4.4
 

@@ -21,13 +21,15 @@ CORE := hostenv.cpp $(EM)/platform_common.cpp $(PLATFORM) $(GFX)/Adafruit_GFX.cp
 LINK := $(FW)/lobby.cpp $(FW)/gamelink.cpp $(FW)/crypto.cpp
 GAMES := $(addsuffix .cpp,$(addprefix $(FW)/,snake tetris flappy game2048 breakout frogger helicopter pacman pong invaders dino))
 
-PROGRAMS := logic_test ttt_test rps_test vs_test settings_test pbv_test chat_test
+PROGRAMS := logic_test ttt_test rps_test vs_test settings_test pbv_test chess_test chess_vs_test chat_test
 
 test: $(addsuffix $(EXE),$(PROGRAMS))
 	./logic_test$(EXE)
 	./settings_test$(EXE)
 	$(MAKE) -C $(EM) --no-print-directory > /dev/null && $(PY) persistence_check.py $(EM)/emulator$(EXE)
 	./ttt_test$(EXE)
+	./chess_test$(EXE)
+	$(PY) chess_check.py .
 	./rps_test$(EXE)
 	$(MAKE) -C $(EM) --no-print-directory > /dev/null && $(PY) video_check.py ./pbv_test$(EXE) $(EM)/emulator$(EXE)
 	./chat_test$(EXE) unit
@@ -51,6 +53,12 @@ pbv_test$(EXE): pbv_test.cpp $(FW)/pbvcodec.cpp
 
 chat_test$(EXE): chat_test.cpp air.cpp $(CORE) $(LINK) $(FW)/chat.cpp $(FW)/contacts.cpp $(FW)/device.cpp
 	g++ $(CXX_FLAGS) -DUSE_AIR -o $@ chat_test.cpp air.cpp $(CORE) $(LINK) $(FW)/chat.cpp $(FW)/contacts.cpp $(FW)/device.cpp $(SYSLIBS)
+
+chess_test$(EXE): chess_test.cpp $(FW)/chessengine.cpp
+	g++ $(CXX_FLAGS) -o $@ chess_test.cpp $(FW)/chessengine.cpp $(SYSLIBS)
+
+chess_vs_test$(EXE): chess_vs_test.cpp air.cpp $(CORE) $(LINK) $(FW)/chess.cpp $(FW)/chessengine.cpp
+	g++ $(CXX_FLAGS) -DUSE_AIR -o $@ chess_vs_test.cpp air.cpp $(CORE) $(LINK) $(FW)/chess.cpp $(FW)/chessengine.cpp $(SYSLIBS)
 
 settings_test$(EXE): settings_test.cpp $(CORE) $(FW)/settings.cpp
 	g++ $(CXX_FLAGS) -o $@ settings_test.cpp $(CORE) $(FW)/settings.cpp $(SYSLIBS)

@@ -43,8 +43,8 @@
 // System identity
 #define OS_NAME "PixelOS"
 #ifndef OS_VERSION
-  #define OS_VERSION "v4.4"
-  #define OS_VERSION_NUM 404       // the same version as a number (major * 100 + minor); firmware updates compare this
+  #define OS_VERSION "v4.5"
+  #define OS_VERSION_NUM 405       // the same version as a number (major * 100 + minor); firmware updates compare this
 #endif
 #define SPLASH_MS 2000
 
@@ -59,7 +59,7 @@
 #define FRAME_IDLE_MS 16
 
 // Game Constants
-#define MAX_GAMES 17
+#define MAX_GAMES 18
 #define BUTTON_DELAY 150
 #define MENU_REPEAT_DELAY_MS 350   // hold LEFT/RIGHT this long before the menu starts scrolling
 #define MENU_REPEAT_MS 110         // then it steps this often
@@ -91,9 +91,10 @@ enum GameID {
   GAME_TICTACTOE = 11,
   GAME_RPS = 12,
   GAME_CONNECT4 = 13,
-  GAME_VIDEO = 14,
-  GAME_CHAT = 15,
-  GAME_SETTINGS = 16
+  GAME_CHESS = 14,
+  GAME_VIDEO = 15,
+  GAME_CHAT = 16,
+  GAME_SETTINGS = 17
 };
 
 // Game States

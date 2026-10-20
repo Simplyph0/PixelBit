@@ -17,7 +17,7 @@ GameManager gameManager;
 Game* const GameManager::games[MAX_GAMES] = {
   &snakeGame, &tetrisGame, &flappyGame, &game2048, &breakoutGame, &froggerGame,
   &helicopterGame, &pacmanGame, &pongGame, &invadersGame, &dinoGame, &ticTacToeGame, &rpsGame, &connect4Game,
-  &videoGame, &chatMenu, &settingsMenu
+  &chessGame, &videoGame, &chatMenu, &settingsMenu
 };
 
 void initGameManager() {
