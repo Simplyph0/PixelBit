@@ -1,5 +1,6 @@
 // Chess on two consoles over a simulated radio, through the real button flow, and against the computer.
-//   chess_vs_test <host|join> <index> <loss%> <seconds>      one side of a two-console game (run both)
+//   chess_vs_test <host|join> <index> <loss%> <seconds>      one side of a two-console game (run both). It plays until the
+//                                                            rematch game has TARGET_PLIES half moves, and gives up after <seconds>
 //   chess_vs_test ai <level> <max plies>                     one console against the computer
 // Both sides play the same scripted fool's mate first (checkmate, the result screen, a rematch with the
 // sides swapped), then moves chosen at random. At the end each side says where it stands; chess_check.py
@@ -15,6 +16,13 @@ void air_sleep_us(unsigned long long);
 extern int g_index, g_port, g_loss;
 extern uint32_t g_chip;
 void air_pump();
+
+// How long the two consoles play. Not a fixed time: how many moves fit into a time depends on how
+// accurately the machine's timers sleep, and a virtualised macOS runner oversleeps by tens of
+// milliseconds a frame (9 moves in 30 simulated seconds, where Linux plays 35). So they play until the
+// rematch game has this many half moves, and <seconds> is only the limit for a machine that is far
+// too slow or a game that is stuck.
+static const int TARGET_PLIES = 24;
 
 static uint16_t scriptedMove(const char* s) {
   uint8_t promo = 0;
@@ -75,7 +83,8 @@ int main(int argc, char** argv) {
   while (true) {
     unsigned long elapsed = millis() - t0;
     if (!vsAi) {
-      if (bots && elapsed >= (unsigned long)secs * 1000) bots = false;            // stop playing; let the two sides catch up
+      const bool enough = rematches >= 1 && (c.plies >= TARGET_PLIES || c.over);   // the rematch game is long enough, or ended
+      if (bots && (enough || elapsed >= (unsigned long)secs * 1000)) bots = false;   // stop playing; let the two sides catch up
       if (!bots && settle++ > 100) break;                                        // about four seconds
     } else if (c.over || c.plies >= maxPlies) break;
     air_pump();

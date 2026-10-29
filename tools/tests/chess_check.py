@@ -29,8 +29,11 @@ def final(log):
 
 # Everything runs at the same time: the two consoles and the three games against the computer
 env = dict(os.environ, PB_SPEED='3', PB_AIR_PORT='44000')
-host = subprocess.Popen([PROG, 'host', '0', '10', '30'], stdout=subprocess.PIPE, text=True, env=env)
-join = subprocess.Popen([PROG, 'join', '1', '10', '30'], stdout=subprocess.PIPE, text=True, env=env)
+# The consoles play until the rematch game is 24 half moves long (see chess_vs_test.cpp); 240 simulated
+# seconds is only the limit for a machine that is far too slow. A fixed 30 seconds played too few moves
+# on a macOS runner, whose timers oversleep.
+host = subprocess.Popen([PROG, 'host', '0', '10', '240'], stdout=subprocess.PIPE, text=True, env=env)
+join = subprocess.Popen([PROG, 'join', '1', '10', '240'], stdout=subprocess.PIPE, text=True, env=env)
 ai_env = dict(os.environ, PB_SPEED='4')
 ais = {level: subprocess.Popen([PROG, 'ai', str(level), '70'], stdout=subprocess.PIPE, text=True, env=ai_env) for level in (0, 1, 2)}
 
@@ -43,7 +46,7 @@ fh, fj = final(host_log), final(join_log)
 check(fh is not None and fj is not None, 'both consoles finished and reported')
 if fh and fj:
     check(fh[:3] == fj[:3], f'both consoles end in the same game, with the same moves and the same position ({fh[1]} plies)')
-    check(int(fh[1]) >= 20, 'a good number of moves was played (not stuck)')
+    check(int(fh[1]) >= 20 or fh[5] == '1', 'a good number of moves was played (not stuck), or the game ended')
     check(fh[4] == '1' and fj[4] == '1', 'both consoles saw the rematch')
 check('game 0 over: result 1, winner 1' in host_log and 'game 0 over: result 1, winner 1' in join_log,
       "the fool's mate ended the first game as a checkmate, won by Black, on both consoles")
@@ -55,7 +58,10 @@ for level, proc in ais.items():
     out = proc.communicate()[0]
     f = final(out)
     check(proc.returncode == 0 and f is not None, f'level {level}: plays a game without a crash or an illegal move ({f[1] if f else "?"} plies)')
-    check(f is not None and int(f[1]) >= 10, f'level {level}: the game gets going')
+    # The other side moves at random, so a game can end early in a genuine checkmate (a fool's mate in 4 half
+    # moves happens in about 1 level-1 game in 30): that is a fine game, not a stuck one.
+    ended = re.search(r'game 0 over: result [12],', out) is not None
+    check(f is not None and (int(f[1]) >= 10 or ended), f'level {level}: the game gets going (or ends in a mate)')
 
 print('\n' + ('all chess play checks passed' if not fails else f'{fails} CHECKS FAILED'))
 sys.exit(1 if fails else 0)
