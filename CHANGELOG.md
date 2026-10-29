@@ -9,6 +9,11 @@ release notes.
 
 ## Unreleased
 
+- **New: Checkers** (game 16): English draughts with compulsory captures and multiple jumps. Vs the computer at five levels (VERY EASY, random, to SUPER HARD, 4 s a move) or a friend on a second console. Same four-button controls as Chess.
+- **New: Minesweeper** (game 15): 16 x 7 field, 12 to 30 mines by difficulty, first cell always safe. Up opens (or chords), Down flags, Left/Right run along the rows.
+- **Menu:** 20 tiles; VIDEOS, CHAT and SETTINGS move up two. Saved scores and settings keep working. The settings keep "options seen" for up to 21 games (bits 16 to 20 sit in the flags byte, so the EEPROM layout is unchanged).
+- **Tests:** checkers perft to depth 8, rules and AI; a two-console checkers game over a lossy radio; Minesweeper rules.
+
 ## v4.5
 
 Chess, much easier Tic-Tac-Toe, and a faster build.

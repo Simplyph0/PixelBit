@@ -1,6 +1,6 @@
 # PixelBit
 
-PixelBit is a pocket handheld arcade: an ESP8266, a tiny OLED screen and four buttons. It has 15 games (including chess), a video player, chat and a settings menu, and two consoles can play each other with no wifi or router. It runs PixelOS v4.5.
+PixelBit is a pocket handheld arcade: an ESP8266, a tiny OLED screen and four buttons. It has 17 games (including chess, checkers and minesweeper), a video player, chat and a settings menu, and two consoles can play each other with no wifi or router. It runs PixelOS v4.5.
 
 ![PixelBit](images/finished_console.jpg)
 
@@ -60,6 +60,10 @@ PixelBit is a pocket handheld arcade: an ESP8266, a tiny OLED screen and four bu
 <td align="center"><img src="images/screens/connect4.png" width="250" alt="Connect 4"><br><sub>Connect 4</sub></td>
 <td align="center"><img src="images/screens/chess.png" width="250" alt="Chess"><br><sub>Chess</sub></td>
 </tr>
+<tr>
+<td align="center"><img src="images/screens/checkers.png" width="250" alt="Checkers"><br><sub>Checkers</sub></td>
+<td align="center"><img src="images/screens/minesweeper.png" width="250" alt="Minesweeper"><br><sub>Minesweeper</sub></td>
+</tr>
 </table>
 
 | Game | What it has |
@@ -79,6 +83,8 @@ PixelBit is a pocket handheld arcade: an ESP8266, a tiny OLED screen and four bu
 | Rock Paper Scissors | First to three, vs an AI that learns your habits or a friend |
 | Connect 4 | Best of three vs a computer that looks up to ten moves ahead (five levels) or a friend |
 | Chess | The full rules, vs a computer with five levels (VERY EASY, almost random, to SUPER HARD, five seconds a move) or a friend. See [Chess](#chess) |
+| Checkers | English draughts with compulsory captures and multiple jumps, vs a computer with five levels (VERY EASY, random, to SUPER HARD, four seconds a move) or a friend. See [Checkers](#checkers) |
+| Minesweeper | 16 x 7 field, five levels (12 to 30 mines), the first cell is always safe, flags and chords. See [Minesweeper](#minesweeper) |
 
 ## Features
 
@@ -86,7 +92,7 @@ PixelBit is a pocket handheld arcade: an ESP8266, a tiny OLED screen and four bu
 - Two-console play: host and join, short unit IDs, accept or deny, encrypted packets
 - High scores that save, with a Wi-Fi page (from SETTINGS) to download and restore them and to name your friends' consoles
 - An animated menu with an icon and best score for every game, screen effects, and a welcome animation and tour on first boot
-- Chess with five AI levels or a friend, see [Chess](#chess)
+- Chess and Checkers with five AI levels or a friend, see [Chess](#chess) and [Checkers](#checkers)
 - Chat: ready-made messages ("Let's play Pong", "Good game!") over ESP-NOW, with a notification blip over whatever you are doing, see [Chat](#chat)
 - A settings menu: brightness, screen-off timer, chat on/off, Wi-Fi page, firmware update, resets, intro and about, see [Settings](#settings)
 - Console-to-console firmware updates over ESP-NOW, no cable or PC, see [Console-to-console firmware update](#console-to-console-firmware-update)
@@ -225,6 +231,8 @@ The last tile, **SETTINGS**, holds what needs neither a computer nor typing (tha
 | Rock Paper Scissors | Left/Right pick a hand, Up locks it in |
 | Connect 4 | Left/Right pick a column, Up or Down drops the disc |
 | Chess | Left/Right step through the pieces that can move, Up picks, Left/Right step through destinations, Up moves, Down goes back |
+| Checkers | Left/Right step through the pieces that can move (a capture is compulsory), Up picks, Left/Right step through destinations, Up moves, Down goes back |
+| Minesweeper | Left/Right move the cursor along the rows (hold to run), Up opens a cell, Down flags it |
 
 ### Chess
 
@@ -254,6 +262,29 @@ Chess is the tile after Connect 4 and plays the full rules: castling, en passant
 The menu score is 3 points for a win or 1 for a draw, times the level (1 to 5), so harder levels are worth more.
 
 **Against a friend.** Pick **2 PLAYER** on both consoles, then HOST GAME and JOIN GAME as in [Playing a friend](#playing-a-friend). The host is White first. After a game, press **Right** on both for a rematch with the sides swapped, or **Up** to leave. The host checks every move the joiner asks for, and a lost move is simply sent again.
+
+### Checkers
+
+Checkers (English draughts) is the tile after Chess: 8 x 8 board, men move diagonally forward, kings both ways, a capture is **compulsory**, a piece that can jump again must keep jumping, a man that reaches the far row becomes a king and its move ends. You lose when you cannot move, and a game with 40 moves each and no capture or man's move is a draw. Your discs are solid, the other side's are rings, a king has a dot in the middle, and a mark shows the square the last piece left.
+
+<table>
+<tr>
+<td align="center"><img src="images/screens/checkers.png" width="300" alt="A checkers game"><br><sub>Your move</sub></td>
+<td align="center"><img src="images/screens/checkers-select.png" width="300" alt="Choosing where a piece goes"><br><sub>Choosing where a piece goes</sub></td>
+</tr>
+</table>
+
+**Moving.** Like chess: **Left/Right** step through the pieces that can move (only the ones that can jump, when a capture is on offer), **Up** picks one, **Left/Right** step through where it can go (the target flashes), **Up** moves, **Down** goes back. After a jump that can go on, the same piece is picked for you and you choose the next jump.
+
+**Against the computer.** Pick **MODE: VS AI** and a **DIFFICULTY**: VERY EASY plays random moves, EASY looks two moves ahead (and is often careless), MEDIUM four, HARD seven, SUPER HARD as far as it gets in four seconds. You start at the bottom and move first; the sides swap each time you play again. The menu score is 3 points for a win or 1 for a draw, times the level.
+
+**Against a friend.** **2 PLAYER** on both consoles, then HOST GAME and JOIN GAME. The host decides and sends the whole position every frame; the joiner asks for its step until the position shows it. **Right** on both is a rematch with the sides swapped.
+
+### Minesweeper
+
+Open every cell without a mine. A number says how many mines touch the cell; an empty cell opens its neighbours. The field is 16 x 7, with 12, 16, 20, 25 or 30 mines by **DIFFICULTY**, and your first cell is always safe (the mines are placed after it). **Left/Right** move the cursor along the rows (hold to run), **Up** opens a cell, or, on an open number that has as many flags around it, opens the cells around it, **Down** puts a flag or takes it away. The top line counts mines left (flags can be wrong) and the seconds. The score is the cells you opened plus 100 for clearing the field, times the level.
+
+<img src="images/screens/minesweeper.png" width="300" alt="A minesweeper field after the first cell">
 
 ## Videos
 
@@ -305,7 +336,7 @@ Keep it around 150 KB: it grows the firmware and every console-to-console update
 
 ## Playing a friend
 
-Pong, Tic-Tac-Toe, Rock Paper Scissors, Connect 4 and Chess work between two consoles, with no router or wifi network.
+Pong, Tic-Tac-Toe, Rock Paper Scissors, Connect 4, Chess and Checkers work between two consoles, with no router or wifi network.
 
 1. On both consoles, open the game and pick **2 PLAYER** in its settings.
 2. One console picks **HOST GAME**, the other picks **JOIN GAME**.
@@ -465,6 +496,7 @@ In the emulator, `--firmware file.bin` loads a real image to send, `--update-out
 - `highscore` and `settings` handle the saved data, and `savesync` is the Wi-Fi backup page.
 - `fwupdate` is the console-to-console firmware update.
 - `chess` is the game and `chessengine` its rules and search. The engine has no Arduino code, so the PC tests run the very same code, checked against the standard perft counts (legal move sequences from known positions), the usual proof of a move generator.
+- `checkers` and `checkersengine` are the same split for checkers (the engine plays one step at a time, so a multiple jump is a few steps by the same piece; perft to depth 8 matches the known counts), and `mines` holds the Minesweeper rules, which `minesweeper` draws.
 - `settingsmenu` is the SETTINGS tile (a `Game` like the others) and `device` keeps its brightness, screen-off and chat settings in the EEPROM.
 - `chat` is the chat protocol, inbox and radio keep-alive, `chatmenu` is the CHAT tile and `contacts` keeps the aliases. `GameLink` carries chat packets in every state; `updateDisplay()` draws the notification blip.
 - `videoplayer` and `pbvcodec` are the video player and its file format; the player stores clips in the flash file system (LittleFS).

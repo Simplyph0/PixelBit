@@ -17,7 +17,7 @@ GameManager gameManager;
 Game* const GameManager::games[MAX_GAMES] = {
   &snakeGame, &tetrisGame, &flappyGame, &game2048, &breakoutGame, &froggerGame,
   &helicopterGame, &pacmanGame, &pongGame, &invadersGame, &dinoGame, &ticTacToeGame, &rpsGame, &connect4Game,
-  &chessGame, &videoGame, &chatMenu, &settingsMenu
+  &chessGame, &minesweeperGame, &checkersGame, &videoGame, &chatMenu, &settingsMenu
 };
 
 void initGameManager() {
@@ -83,6 +83,16 @@ void GameManager::init() {
   optionsSeen = 0;
   settingFlags = 0;
   loadGameOptions(optionValue, &optionsSeen, &settingFlags);
+  // A game whose settings screens were never shown has its defaults. The saved rows of games added
+  // since the block was written (or shifted by new tiles) hold whatever the tile that used to be
+  // there had, so they must not be taken as a choice.
+  for (int g = 0; g < MAX_GAMES; g++) {
+    if ((optionsSeen >> g) & 1) continue;
+    for (int o = 0; o < MAX_GAME_OPTIONS; o++) {
+      const GameOption* opt = o < games[g]->optionCount() ? games[g]->option(o) : nullptr;
+      optionValue[g][o] = opt ? opt->defaultValue : 0;
+    }
+  }
   menuNotice = false;
   leftTaps = 0;
   lastLeftTap = testUpSince = 0;
@@ -442,7 +452,7 @@ void GameManager::openGame(int gameId, bool forceSettings) {
   }
 
   optIndex = nextShownOption(-1, 1);
-  if (optIndex < 0 || (!forceSettings && (optionsSeen >> gameId & 1))) {
+  if (optIndex < 0 || (!forceSettings && ((optionsSeen >> gameId) & 1))) {
     setGame(gameId);
     return;
   }
@@ -476,7 +486,7 @@ void GameManager::handleOptionsInput() {
       optIndex = next;
       showOptions();
     } else {
-      optionsSeen |= 1 << currentGame;
+      optionsSeen |= 1UL << currentGame;
       saveGameOptions(optionValue, optionsSeen, settingFlags);
       setGame(currentGame);
     }

@@ -21,7 +21,7 @@ CORE := hostenv.cpp $(EM)/platform_common.cpp $(PLATFORM) $(GFX)/Adafruit_GFX.cp
 LINK := $(FW)/lobby.cpp $(FW)/gamelink.cpp $(FW)/crypto.cpp
 GAMES := $(addsuffix .cpp,$(addprefix $(FW)/,snake tetris flappy game2048 breakout frogger helicopter pacman pong invaders dino))
 
-PROGRAMS := logic_test ttt_test rps_test vs_test settings_test pbv_test chess_test chess_vs_test chat_test
+PROGRAMS := logic_test ttt_test rps_test vs_test settings_test pbv_test chess_test chess_vs_test checkers_test checkers_vs_test mines_test chat_test
 
 test: $(addsuffix $(EXE),$(PROGRAMS))
 	./logic_test$(EXE)
@@ -29,7 +29,10 @@ test: $(addsuffix $(EXE),$(PROGRAMS))
 	$(MAKE) -C $(EM) --no-print-directory > /dev/null && $(PY) persistence_check.py $(EM)/emulator$(EXE)
 	./ttt_test$(EXE)
 	./chess_test$(EXE)
+	./checkers_test$(EXE)
+	./mines_test$(EXE)
 	$(PY) chess_check.py .
+	$(PY) checkers_check.py .
 	./rps_test$(EXE)
 	$(MAKE) -C $(EM) --no-print-directory > /dev/null && $(PY) video_check.py ./pbv_test$(EXE) $(EM)/emulator$(EXE)
 	./chat_test$(EXE) unit
@@ -56,6 +59,15 @@ chat_test$(EXE): chat_test.cpp air.cpp $(CORE) $(LINK) $(FW)/chat.cpp $(FW)/cont
 
 chess_test$(EXE): chess_test.cpp $(FW)/chessengine.cpp
 	g++ $(CXX_FLAGS) -o $@ chess_test.cpp $(FW)/chessengine.cpp $(SYSLIBS)
+
+checkers_test$(EXE): checkers_test.cpp $(FW)/checkersengine.cpp
+	g++ $(CXX_FLAGS) -o $@ checkers_test.cpp $(FW)/checkersengine.cpp $(SYSLIBS)
+
+checkers_vs_test$(EXE): checkers_vs_test.cpp air.cpp $(CORE) $(LINK) $(FW)/checkers.cpp $(FW)/checkersengine.cpp
+	g++ $(CXX_FLAGS) -DUSE_AIR -o $@ checkers_vs_test.cpp air.cpp $(CORE) $(LINK) $(FW)/checkers.cpp $(FW)/checkersengine.cpp $(SYSLIBS)
+
+mines_test$(EXE): mines_test.cpp $(FW)/mines.cpp
+	g++ $(CXX_FLAGS) -o $@ mines_test.cpp $(FW)/mines.cpp $(SYSLIBS)
 
 chess_vs_test$(EXE): chess_vs_test.cpp air.cpp $(CORE) $(LINK) $(FW)/chess.cpp $(FW)/chessengine.cpp
 	g++ $(CXX_FLAGS) -DUSE_AIR -o $@ chess_vs_test.cpp air.cpp $(CORE) $(LINK) $(FW)/chess.cpp $(FW)/chessengine.cpp $(SYSLIBS)

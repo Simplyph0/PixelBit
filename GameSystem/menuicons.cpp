@@ -63,6 +63,15 @@ static const IconRect ICON_CHESS[] = {
   {3,1,2,3,1}, {7,1,2,3,1}, {11,1,2,3,1}, {3,4,10,2,1}, {5,6,6,5,1}, {3,11,10,2,1}, {2,13,12,2,1}
 };
 
+static const IconRect ICON_MINESWEEPER[] = {
+  {5,5,6,6,1}, {7,2,2,12,1}, {2,7,12,2,1}, {3,3,2,2,1}, {11,3,2,2,1}, {3,11,2,2,1}, {11,11,2,2,1}, {6,6,2,2,0}
+};
+
+static const IconRect ICON_CHECKERS[] = {
+  {0,0,4,4,1}, {8,0,4,4,1}, {4,4,4,4,1}, {12,4,4,4,1}, {0,8,4,4,1}, {8,8,4,4,1}, {4,12,4,4,1}, {12,12,4,4,1},
+  {1,9,2,2,0}, {9,1,2,2,0}, {5,5,2,2,0}
+};
+
 static const IconRect ICON_VIDEO[] = {
   {1,1,14,14,1}, {2,2,12,12,0}, {6,4,1,8,1}, {7,5,1,6,1}, {8,6,1,4,1}, {9,7,1,2,1}
 };
@@ -83,7 +92,7 @@ static const IconDef ICONS[MAX_GAMES] = {
   ICON(ICON_SNAKE), ICON(ICON_TETRIS), ICON(ICON_FLAPPY), ICON(ICON_2048), ICON(ICON_BREAKOUT),
   ICON(ICON_FROGGER), ICON(ICON_HELICOPTER), ICON(ICON_PACMAN), ICON(ICON_PONG),
   ICON(ICON_INVADERS), ICON(ICON_DINO), ICON(ICON_TICTACTOE), ICON(ICON_RPS), ICON(ICON_CONNECT4),
-  ICON(ICON_CHESS),
+  ICON(ICON_CHESS), ICON(ICON_MINESWEEPER), ICON(ICON_CHECKERS),
   ICON(ICON_VIDEO), ICON(ICON_CHAT), ICON(ICON_SETTINGS)
 };
 

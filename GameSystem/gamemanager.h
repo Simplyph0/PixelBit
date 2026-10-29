@@ -18,6 +18,8 @@
 #include "rps.h"
 #include "connect4.h"
 #include "chess.h"
+#include "minesweeper.h"
+#include "checkers.h"
 #include "videoplayer.h"
 #include "chatmenu.h"
 #include "tutorial.h"
@@ -41,7 +43,7 @@ private:
   bool menuNotice;                         // the "tour skipped" message is showing
   unsigned long downSince;                 // DOWN pressed on the menu since then (0 = not)
   bool downLongDone;                       // the long press already started the tour
-  uint16_t optionsSeen;                    // bit n: game n's settings screens were shown once
+  uint32_t optionsSeen;                    // bit n: game n's settings screens were shown once
   int nextShownOption(int from, int dir);
   int menuTarget;     // unwrapped index the carousel is sliding to
   bool newHighscore; // Flag for new highscore

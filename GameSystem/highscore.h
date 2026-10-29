@@ -23,7 +23,7 @@ static_assert(SETTINGS_ADDR + 10 + MAX_GAMES * MAX_GAME_OPTIONS + 2 <= DEVICE_AD
 static_assert(DEVICE_ADDR + 8 <= CONTACTS_ADDR, "the device settings would run into the contacts");
 static_assert(TEST_SCRATCH_ADDR + TEST_SCRATCH_LEN <= EEPROM_SIZE, "the test area is past the end of the EEPROM");
 static_assert(MAX_GAMES <= 32, "the scores and settings tables are sized for 32 games at most");
-// The settings keep a 16-bit mask of "options seen" (settings.h): only games 0-15 may have options
+static_assert(MAX_GAMES <= 21, "the settings keep 'options seen' bits for 21 games (settings.cpp)");
 
 // Save format (version 1), little endian, identical in EEPROM and in exported files:
 //   "GSAV" | version u8 | count u8 | reserved u16 | score i32 x count | crc32 u32

@@ -10,8 +10,9 @@
 #define SETTING_TUTORIAL_DONE 0x01
 // 0x02 and 0x04 held a saved button layout in v4.2; the layout now comes from
 // config.h only, so those bits are ignored (and left unused)
-void loadGameOptions(uint8_t values[MAX_GAMES][MAX_GAME_OPTIONS], uint16_t* seen, uint8_t* flags);
-void saveGameOptions(const uint8_t values[MAX_GAMES][MAX_GAME_OPTIONS], uint16_t seen, uint8_t flags);
+// seen: bit n is set once game n's settings screens have been shown (21 games at most, see settings.cpp)
+void loadGameOptions(uint8_t values[MAX_GAMES][MAX_GAME_OPTIONS], uint32_t* seen, uint8_t* flags);
+void saveGameOptions(const uint8_t values[MAX_GAMES][MAX_GAME_OPTIONS], uint32_t seen, uint8_t flags);
 
 // True until the first-boot greeting has been shown (nothing saved yet, or an older save)
 bool isFirstBoot();
