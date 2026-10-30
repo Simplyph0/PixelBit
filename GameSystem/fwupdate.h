@@ -96,7 +96,6 @@ private:
   unsigned long lastResultAt = 0;
   uint8_t lastChunk[192];
   uint8_t lastChunkLen = 0;
-  uint8_t sentResult = 255;
   uint8_t offerMessage = 0;           // 0 newer, 1 same version number
 
   // sender side

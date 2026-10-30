@@ -75,8 +75,6 @@ public:
   void moveMenu(int step);
   void showResult(bool won);
   void handleResultInput();
-  int getCurrentGame() { return currentGame; }
-  GameState getState() { return currentState; }
 };
 
 extern GameManager gameManager;

@@ -258,7 +258,6 @@ bool GameLink::receive(uint8_t* out, uint8_t& len) {
   return true;
 }
 
-unsigned long GameLink::msSinceReceive() const { return millis() - lastRx; }
 
 // ---------------------------------------------------------------------------
 // Bulk channel: [magic, T_BULK, seq (4), payload..., tag]. The tag uses the

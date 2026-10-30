@@ -14,15 +14,21 @@ def check(cond, msg):
     print(('  ok   ' if cond else '  FAIL ') + msg)
     if not cond: fails += 1
 
-def run(loss, seed_port):
-    env = dict(os.environ, PB_SPEED='4', PB_AIR_PORT=str(seed_port))
-    rx = subprocess.Popen([CT, 'rx', '0', str(loss), '60'], stdout=subprocess.PIPE, text=True, env=env)
-    tx = subprocess.Popen([CT, 'tx', '1', str(loss), '60'], stdout=subprocess.PIPE, text=True, env=env)
-    return tx.communicate()[0], rx.communicate()[0]
+def start(port, loss, secs, *extra):   # a pair of consoles on its own ports, so the three runs go at the same time
+    env = dict(os.environ, PB_SPEED='4', PB_AIR_PORT=str(port))
+    rx = subprocess.Popen([CT, 'rx', '0', str(loss), secs, *extra], stdout=subprocess.PIPE, text=True, env=env)
+    tx = subprocess.Popen([CT, 'tx', '1', str(loss), secs, *extra], stdout=subprocess.PIPE, text=True, env=env)
+    return tx, rx
+
+def finish(pair):
+    return pair[0].communicate()[0], pair[1].communicate()[0]
+
+runs = {loss: start(43000 + loss, loss, '60') for loss in (0, 20)}
+handoff = start(43500, 0, '90', 'handoff')
 
 for loss in (0, 20):
     print(f'two consoles, {loss}% of packets lost')
-    tx, rx = run(loss, 43000 + loss)
+    tx, rx = finish(runs[loss])
     check('[tx] nearby 1' in tx and 'matches rx: 1' in tx, 'the ping finds the other console')
     check('[tx] to rx: DELIVERED' in tx, 'a message to one console is acknowledged')
     check('[tx] to all: SENT' in tx, 'a message to everyone ends as SENT')
@@ -34,10 +40,7 @@ for loss in (0, 20):
     check(all('unread' in l for l in lines) and lines and 'unread 2' in lines[-1], 'both are unread')
 
 print('chat and a two-console session share the radio')
-env = dict(os.environ, PB_SPEED='4', PB_AIR_PORT='43500')
-rxp = subprocess.Popen([CT, 'rx', '0', '0', '90', 'handoff'], stdout=subprocess.PIPE, text=True, env=env)
-txp = subprocess.Popen([CT, 'tx', '1', '0', '90', 'handoff'], stdout=subprocess.PIPE, text=True, env=env)
-tx, rx = txp.communicate()[0], rxp.communicate()[0]
+tx, rx = finish(handoff)
 check('[tx] 1st: DELIVERED' in tx, 'chat works before the session')
 check('session up, chat tag now 5' in tx and 'session up' in rx, 'a session can take the radio from chat')
 check('[tx] 2nd (in session): DELIVERED' in tx, 'a chat message gets through during the session')

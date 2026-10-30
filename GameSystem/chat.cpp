@@ -52,7 +52,6 @@ int chatGameTotal() { return gameTotal; }
 const char* chatGameName(int i) { return (gameNameOf && i >= 0 && i < gameTotal) ? gameNameOf(i) : nullptr; }
 
 bool chatCodeNeedsGame(uint8_t c) { return c == CM_PLAY_GAME || c == CM_BEAT_SCORE; }
-bool chatCodeHasScore(uint8_t c) { return c == CM_BEAT_SCORE; }
 
 void chatLabel(uint8_t code, char* out, size_t n) {
   if (code >= CM_COUNT) { snprintf(out, n, "?"); return; }

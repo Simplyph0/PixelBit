@@ -3,7 +3,7 @@
 //                                                            rematch game has TARGET_PLIES half moves, and gives up after <seconds>
 //   chess_vs_test ai <level> <max plies>                     one console against the computer
 // Both sides play the same scripted fool's mate first (checkmate, the result screen, a rematch with the
-// sides swapped), then moves chosen at random. At the end each side says where it stands; chess_check.py
+// sides swapped), then moves chosen at random. At the end each side says where it stands; board_check.py
 // compares the two.
 #define private public
 #include "chess.h"

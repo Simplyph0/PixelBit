@@ -51,7 +51,7 @@ private:
   bool exitRequested = false;
   bool wantRematch = false, peerRematch = false;
   bool gotState = false;
-  uint16_t wantStep = 0, wantAt = 0; // joiner: the step it is asking for, and the step count it was asked at
+  uint16_t wantStep = 0;             // joiner: the step it is asking for
   unsigned long wantSince = 0;
 
   void newGame();

@@ -83,7 +83,6 @@ private:
   void drawBoard();
   void drawPanel();
   void drawSprite(int x, int y, uint8_t type, bool black);
-  void drawSquare(int sq64, int style);
   void screenXY(uint8_t sq64, int& x, int& y) const;
   const char* resultText() const;
 

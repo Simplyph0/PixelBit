@@ -5,7 +5,7 @@
 // Both sides play random legal steps. The first game is cut short on purpose: after a few steps the host swaps in a
 // position where its next jump takes the last enemy man (checkmate in chess terms), so the end of a game, the result
 // screen and a rematch with the sides swapped are played through. At the end each side says where it stands;
-// checkers_check.py compares the two.
+// board_check.py compares the two.
 #define private public
 #include "checkers.h"
 #include "input.h"

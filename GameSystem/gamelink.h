@@ -76,7 +76,6 @@ public:
   // that arrived since the last call and discards older ones.
   bool send(const uint8_t* data, uint8_t len);
   bool receive(uint8_t* out, uint8_t& len);
-  unsigned long msSinceReceive() const;
 
   // Bulk packets carry up to LINK_BULK_MAX bytes and are meant for data that is
   // not secret, such as firmware: they are authenticated with the session key

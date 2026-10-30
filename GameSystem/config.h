@@ -43,8 +43,8 @@
 // System identity
 #define OS_NAME "PixelOS"
 #ifndef OS_VERSION
-  #define OS_VERSION "v4.6"
-  #define OS_VERSION_NUM 406       // the same version as a number (major * 100 + minor); firmware updates compare this
+  #define OS_VERSION "v4.7"
+  #define OS_VERSION_NUM 407       // the same version as a number (major * 100 + minor); firmware updates compare this
 #endif
 #define SPLASH_MS 2000
 
@@ -60,7 +60,6 @@
 
 // Game Constants
 #define MAX_GAMES 20
-#define BUTTON_DELAY 150
 #define MENU_REPEAT_DELAY_MS 350   // hold LEFT/RIGHT this long before the menu starts scrolling
 #define MENU_REPEAT_MS 110         // then it steps this often
 #define TOUR_HOLD_MS 1000          // hold DOWN on the menu this long to replay the tour

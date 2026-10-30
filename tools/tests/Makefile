@@ -31,8 +31,8 @@ test: $(addsuffix $(EXE),$(PROGRAMS))
 	./chess_test$(EXE)
 	./checkers_test$(EXE)
 	./mines_test$(EXE)
-	$(PY) chess_check.py .
-	$(PY) checkers_check.py .
+	$(PY) board_check.py chess .
+	$(PY) board_check.py checkers .
 	./rps_test$(EXE)
 	$(MAKE) -C $(EM) --no-print-directory > /dev/null && $(PY) video_check.py ./pbv_test$(EXE) $(EM)/emulator$(EXE)
 	./chat_test$(EXE) unit
@@ -87,7 +87,7 @@ update_test$(EXE): update_test.cpp air.cpp $(CORE) $(LINK) $(FW)/fwupdate.cpp
 	g++ $(CXX_FLAGS) -DUSE_AIR '-DOS_VERSION="v4.0"' -DOS_VERSION_NUM=400 -o update_test_old$(EXE) update_test.cpp air.cpp $(CORE) $(LINK) $(FW)/fwupdate.cpp $(SYSLIBS)
 
 clean:
-	rm -f chat_test update_test update_test_new update_test_old logic_test ttt_test rps_test vs_test c4_test settings_test *.exe
+	rm -f chat_test update_test update_test_new update_test_old logic_test ttt_test rps_test vs_test settings_test *.exe
 
 c4_test$(EXE): c4_test.cpp air.cpp $(CORE) $(LINK) $(FW)/connect4.cpp
 	g++ $(CXX_FLAGS) -DUSE_AIR -o $@ c4_test.cpp air.cpp $(CORE) $(LINK) $(FW)/connect4.cpp $(SYSLIBS)

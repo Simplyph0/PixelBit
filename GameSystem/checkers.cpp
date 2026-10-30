@@ -287,7 +287,7 @@ void CheckersGame::updateClient() {
       if (buttons.upPressed) exitRequested = true;
     } else if (myTurn() && stage != ST_WAIT) {
       uint16_t s = handleInput();
-      if (s) { wantStep = s; wantAt = steps; wantSince = millis(); stage = ST_WAIT; }
+      if (s) { wantStep = s; wantSince = millis(); stage = ST_WAIT; }
     }
     if (stage == ST_WAIT && !over && millis() - wantSince > 3000) { wantStep = 0; stage = ST_PIECE; }   // the host did not take it: choose again
     if (stage != ST_WAIT) wantStep = 0;

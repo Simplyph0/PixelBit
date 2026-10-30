@@ -8,8 +8,10 @@ name: Build firmware
 # message as the notes; a main push whose commit carries such a tag leaves the
 # release to the tag.
 #
-# Three jobs. "test" (on Linux, macOS and Windows) and "firmware" (the real compile for the
-# console) run at the same time; "release" waits for both and publishes.
+# Jobs. "test" (on Linux, macOS and Windows) and "firmware" (the real compile for the console) run at the
+# same time; "release" waits for both and publishes. "plan" cancels the run of a push to main whose commit
+# also carries a version tag: the tag's own run tests, builds and publishes it, so doing it twice is a waste.
+# It runs alongside the others, so an ordinary push never waits for it.
 on:
   push:
     branches: [main]
@@ -18,19 +20,44 @@ on:
       - "GameSystem/**"
       - "tools/**"
       - ".github/workflows/**"
+      - "!**/*.md"            # a words-only change needs no build
   pull_request:
     paths:
       - "GameSystem/**"
       - "tools/**"
       - ".github/workflows/**"
+      - "!**/*.md"            # a words-only change needs no build
   workflow_dispatch:
 
 permissions:
-  contents: write
+  contents: read          # only the release job writes (below)
+
+# A new push to a pull request replaces its older run. Branch and tag runs always finish: each may publish.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 jobs:
+  plan:
+    name: plan
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    if: github.event_name == 'push' && startsWith(github.ref, 'refs/heads/')
+    permissions:
+      actions: write
+    steps:
+      - name: Cancel this run when the commit has a version tag
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # a vX.Y tag on this very commit (not a vX.Y-build.N release tag); annotated tags list the commit as "^{}"
+          if git ls-remote --tags "$GITHUB_SERVER_URL/$GITHUB_REPOSITORY" 'v*' | grep -v -- '-build\.' | grep -q "^$GITHUB_SHA"; then
+            gh run cancel "$GITHUB_RUN_ID" --repo "$GITHUB_REPOSITORY"
+          fi
+
   test:
     name: test (${{ matrix.os }})
+    timeout-minutes: 40
     strategy:
       fail-fast: false
       matrix:
@@ -54,7 +81,6 @@ jobs:
         if: runner.os == 'Windows'
         with:
           msystem: UCRT64
-          update: true
           install: >-
             git
             mingw-w64-ucrt-x86_64-gcc
@@ -83,6 +109,7 @@ jobs:
   firmware:
     name: firmware (compile for the console)
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
 
@@ -90,6 +117,7 @@ jobs:
 
       # The ESP8266 core and the libraries are big downloads, and the core takes a while to build: keep both between runs
       - name: Cache the ESP8266 core, the libraries and the built core
+        id: cache
         uses: actions/cache@v4
         with:
           path: |
@@ -98,9 +126,11 @@ jobs:
             ~/.cache/arduino/cores
           key: arduino-esp8266-3.1.2-adafruit-v1
 
+      # With a warm cache the core, the libraries and the board index URL are all in the cache already
       - name: Install ESP8266 core and libraries
+        if: steps.cache.outputs.cache-hit != 'true'
         run: |
-          arduino-cli config init || true       # already there when the cache is warm
+          arduino-cli config init || true
           arduino-cli config set board_manager.additional_urls https://arduino.esp8266.com/stable/package_esp8266com_index.json
           arduino-cli core update-index
           arduino-cli lib update-index
@@ -132,6 +162,9 @@ jobs:
     name: release
     needs: [test, firmware]
     runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
     steps:
       - uses: actions/checkout@v4
         with:
@@ -174,6 +207,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: PixelBit-${{ steps.rel.outputs.tag }}
+          retention-days: 14
           path: |
             build/PixelBit-*.bin
             build/SHA256SUMS.txt

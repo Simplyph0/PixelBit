@@ -1,6 +1,6 @@
 # PixelBit
 
-PixelBit is a pocket handheld arcade: an ESP8266, a tiny OLED screen and four buttons. It has 17 games (including chess, checkers and minesweeper), a video player, chat and a settings menu, and two consoles can play each other with no wifi or router. It runs PixelOS v4.6.
+PixelBit is a pocket handheld arcade: an ESP8266, a tiny OLED screen and four buttons. It has 17 games (including chess, checkers and minesweeper), a video player, chat and a settings menu, and two consoles can play each other with no wifi or router. It runs PixelOS v4.7.
 
 ![PixelBit](images/finished_console.jpg)
 
@@ -153,7 +153,7 @@ The 3D printed case is the original author's design: [Tiny Retro Arcade on Maker
 No IDE? Every release on the [Releases](https://github.com/Simplyph0/PixelBit/releases) page has a ready `.bin`. Flash it with [esptool](https://github.com/espressif/esptool):
 
 ```bash
-esptool.py --port /dev/ttyUSB0 write_flash 0x0 PixelBit-v4.6.bin
+esptool.py --port /dev/ttyUSB0 write_flash 0x0 PixelBit-v4.7.bin
 ```
 
 Prefer clicking? `tools/flasher/pixelbit_flasher.py` is a small window for Linux, macOS and Windows: pick the `.bin`, it finds the console's port, flashes at 460800 baud and can flash several consoles at once. Chip erase is off by default because it deletes scores and videos. Needs Python 3 with tkinter and esptool (`pipx install esptool`). See [tools/](tools/README.md).

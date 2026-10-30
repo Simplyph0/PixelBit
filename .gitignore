@@ -1,11 +1,7 @@
 # Built programs and test binaries
 tools/emulator/emulator
-tools/tests/logic_test
-tools/tests/ttt_test
-tools/tests/rps_test
-tools/tests/vs_test
-tools/tests/c4_test
-tools/tests/settings_test
+tools/tests/*_test
+tools/tests/update_test_*
 
 # Things the emulator writes when you use it
 shots/
@@ -18,11 +14,13 @@ __pycache__/
 .DS_Store
 *.swp
 .vscode/
-tools/tests/update_test
-tools/tests/update_test_new
-tools/tests/update_test_old
 build/
 
 # Windows builds and CMake output
 tools/emulator/emulator.exe
 tools/tests/*.exe
+
+# AI assistant files stay local
+CLAUDE.md
+.claude/
+graphify-out/

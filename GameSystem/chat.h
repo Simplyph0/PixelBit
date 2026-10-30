@@ -71,7 +71,6 @@ void chatReleaseRadio();                      // gives the radio up before somet
 
 // Messages
 bool chatCodeNeedsGame(uint8_t code);
-bool chatCodeHasScore(uint8_t code);
 void chatLabel(uint8_t code, char* out, size_t n);          // short, for a list: "LET'S PLAY..."
 void chatFormat(const ChatMsg& m, char* out, size_t n);     // the whole text
 void chatWho(const uint8_t id[3], char* out);               // the alias, or the id; out holds ALIAS_MAX + 1

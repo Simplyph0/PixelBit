@@ -9,6 +9,14 @@ release notes.
 
 ## Unreleased
 
+## v4.7
+
+Cleanup and a faster build. No new features.
+
+- **Removed unused code:** `BUTTON_DELAY`, `chatCodeHasScore`, `msSinceReceive`, `drawSquare`, `sentResult`, `wantAt`, `getCurrentGame` and `getState`, and one unused screenshot.
+- **Faster tests:** the firmware-update and chat tests run their scenarios at the same time (43 s to 15 s and 34 s to 15 s). `chess_check.py` and `checkers_check.py` are now one `board_check.py`.
+- **Faster, leaner CI:** no full MSYS2 update on Windows, a push that only changes `.md` files builds nothing, the ESP8266 core install is skipped on a cache hit, and the `main` run of a tagged commit is cancelled because the tag's run does the same work. Jobs have timeouts and only the release job can write.
+
 ## v4.6
 
 Checkers and Minesweeper.

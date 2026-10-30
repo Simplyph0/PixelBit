@@ -97,7 +97,6 @@ bool FirmwareUpdate::update() {
       if (r == LOBBY_HOST) {              // this console receives
         phase = PH_RX_WAIT;
         rxBase = 0;
-        sentResult = 255;
       } else if (r == LOBBY_CLIENT) {     // this console sends
         startPrepare();
       }
